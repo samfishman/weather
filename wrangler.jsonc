@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weather",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    // Caches the forecast bundle (15 min) and single-run responses (24 h).
+    { "binding": "CACHE", "id": "f174c09bb9884b9c9ab285224a996940" }
+  ],
+  "observability": { "enabled": true }
+}
