@@ -64,7 +64,7 @@ export function Daily({ bundle, units, day, onDay, tab, onTab }: Props) {
   return (
     <section class="section">
       <div class="section-head">
-        <h2>Daily Forecast</h2>
+        <h2>15-Day Outlook</h2>
         <span class="muted small">Data from Open-Meteo</span>
       </div>
       <div class="card daily">

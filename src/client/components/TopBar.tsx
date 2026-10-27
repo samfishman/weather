@@ -77,16 +77,16 @@ export function TopBar({ onPick, onMyLocation, isMine, favorites, units, onUnits
       <div class="topbar-inner" ref={wrap}>
         <a class="brand" href="/" onClick={(e) => { e.preventDefault(); onMyLocation(); }}>
           <img src="/favicon.svg" alt="" />
-          <span>WEATHER</span>
+          <span>ISOBAR</span>
         </a>
         <button class={`navbtn${isMine ? ' active' : ''}`} onClick={onMyLocation} title="Forecast for my location">
           <Icon name="locate" size={18} />
-          <span>My Location</span>
+          <span>Locate</span>
         </button>
         <div class="favwrap">
-          <button class={`navbtn${favOpen ? ' active' : ''}`} onClick={() => setFavOpen(!favOpen)} title="Favorites">
+          <button class={`navbtn${favOpen ? ' active' : ''}`} onClick={() => setFavOpen(!favOpen)} title="Saved locations">
             <Icon name="star" size={18} />
-            <span>Favorites</span>
+            <span>Saved</span>
           </button>
           {favOpen && (
             <div class="menu">

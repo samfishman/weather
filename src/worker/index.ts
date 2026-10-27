@@ -53,10 +53,23 @@ function cachedFetchJson(env: Env, ctx: ExecutionContext): FetchJson {
       }
     }
     const value = await base(url);
+    if (isRun && !runComplete(value)) {
+      // A run that is still being published can come back empty for some models; don't keep it.
+      memSet(key, value, META_TTL);
+      return value;
+    }
     memSet(key, value, ttl);
     if (isRun && env.CACHE) ctx.waitUntil(env.CACHE.put(key, JSON.stringify(value), { expirationTtl: ttl }));
     return value;
   };
+}
+
+/** True when every model in a Single Runs response has temperature data. */
+function runComplete(value: any): boolean {
+  const h = value?.hourly;
+  if (!h) return false;
+  const temps = Object.keys(h).filter((k) => k.startsWith('temperature_2m'));
+  return temps.length > 0 && temps.every((k) => (h[k] as (number | null)[]).some((v) => v != null));
 }
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {

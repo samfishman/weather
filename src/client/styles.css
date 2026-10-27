@@ -1,86 +1,4 @@
-:root {
-  color-scheme: dark;
-  --bg: #050607;
-  --topbar: #1c2938;
-  --topbar-input: #2b3a4c;
-  --surface: #1b1c1e;
-  --surface-2: #232528;
-  --surface-3: #2c2f33;
-  --border: #33373d;
-  --grid: #2f3237;
-  --text: #f0efec;
-  --text-2: #c3c2b7;
-  --text-3: #8f9197;
-  --accent: #3987e5;
-  --accent-soft: #3987e526;
-  --link: #5aa2f0;
-  --highlight: #e8790f;
-  --gust-text: #f2b33d;
-  --star: #f2b33d;
-  --rain: #6cb46f;
-  --mix: #9085e9;
-  --snow: #3987e5;
-  --heavy-snow: #e8790f;
-  --cloud: #8f9197;
-  --sustained: #3987e5;
-  --gusts: #e34948;
-  --lightning-none: #4a4d52;
-  --lightning-low: #eda100;
-  --lightning-some: #d95926;
-  --lightning-high: #e34948;
-  --pop-low: #eda100;
-  --pop-mid: #e8790f;
-  --pop-high: #e34948;
-  --blend-line: #9fcbff;
-  --run-line: #3987e5;
-  --selected-line: #e8790f;
-  --band-light: #1f6f2f;
-  --band-moderate: #6f7a1f;
-  --band-strong: #8a4a12;
-  --band-very: #7a1717;
-  --snow-zone: #1d3f6a;
-  --rain-zone: #3a4a2a;
-  --moon-lit: #f2e6b0;
-  --moon-dark: #3a3d42;
-  --radius: 10px;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 15px;
-  line-height: 1.4;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #eef0f3;
-    --topbar: #1c2938;
-    --topbar-input: #2b3a4c;
-    --surface: #ffffff;
-    --surface-2: #f4f5f7;
-    --surface-3: #e8eaee;
-    --border: #d9dce1;
-    --grid: #e3e5e9;
-    --text: #0b0b0b;
-    --text-2: #45464a;
-    --text-3: #6b6d73;
-    --accent: #2a78d6;
-    --accent-soft: #2a78d61f;
-    --link: #1f6ac2;
-    --gust-text: #b36b00;
-    --rain: #3f9a48;
-    --mix: #6250d6;
-    --snow: #2a78d6;
-    --cloud: #8a8c92;
-    --lightning-none: #c9ccd1;
-    --blend-line: #1d5fb0;
-    --run-line: #2a78d6;
-    --band-light: #cfe8d1;
-    --band-moderate: #e7e6bf;
-    --band-strong: #f3d7bd;
-    --band-very: #f3c5c5;
-    --snow-zone: #d6e6f8;
-    --rain-zone: #e2ead6;
-  }
-}
+/* Layout and structure. Colors, type and the Instrument look live in theme.css, which defines every token used here and in the charts. */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -132,7 +50,7 @@ button { font: inherit; color: inherit; }
 .loading { padding: 60px 0; text-align: center; color: var(--text-3); }
 .stale { opacity: 0.55; transition: opacity 0.2s; }
 
-/* ---- Right Now ---- */
+/* ---- Now ---- */
 .now-grid { display: grid; grid-template-columns: 1fr 1fr; }
 .now-cell { padding: 14px 12px 12px; }
 .now-main { display: flex; align-items: baseline; gap: 8px; }
@@ -183,7 +101,7 @@ button { font: inherit; color: inherit; }
 .sunmoon .lbl { font-size: 12.5px; color: var(--text-2); }
 .sunmoon .val { font-weight: 700; font-size: 13.5px; }
 
-/* ---- Forecast Range ---- */
+/* ---- Model Spread ---- */
 .controls { display: flex; gap: 8px; padding: 12px 12px 6px; align-items: center; overflow-x: auto; scrollbar-width: none; }
 .controls::-webkit-scrollbar { display: none; }
 .select { position: relative; flex: none; }

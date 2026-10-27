@@ -11,8 +11,10 @@ const base = fetchJsonVia(fetch);
 const browserFetch: FetchJson = async (url) => {
   if (!url.startsWith('https://single-runs-api.')) return base(url);
   if (runCache.has(url)) return runCache.get(url);
-  const value = await base(url);
-  runCache.set(url, value);
+  const value: any = await base(url);
+  // Only keep runs that came back complete; a run still being published can be partly empty.
+  const temps = Object.keys(value?.hourly ?? {}).filter((k) => k.startsWith('temperature_2m'));
+  if (temps.length && temps.every((k) => value.hourly[k].some((v: number | null) => v != null))) runCache.set(url, value);
   return value;
 };
 

@@ -499,7 +499,7 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
 
   return (
     <section class="section">
-      <h2>Forecast Range</h2>
+      <h2>Model Spread</h2>
       <div class="card">
         <div class="controls">
           <ModelSelect bundle={bundle} value={model} onChange={onModel} />

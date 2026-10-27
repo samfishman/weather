@@ -80,7 +80,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const length: number = best.hourly.time.length;
   const now = Math.floor(Date.now() / 1000);
 
-  // ---- Main forecast: NBM blended into best match (hourly tabs, daily strip, Right Now) ----
+  // ---- Main forecast: NBM blended into best match (hourly tabs, 15-day strip, Now) ----
   const merged = mergeHourly(best.hourly, nbm?.hourly ?? null);
   const bh = merged.hourly;
   const precip = bh.precipitation;

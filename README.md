@@ -1,14 +1,14 @@
-# Weather
+# Isobar
 
-A weather dashboard for any location, modeled on OpenSnow's "My Location" page and built on free [Open-Meteo](https://open-meteo.com/) data. It runs as a Cloudflare Worker.
+A weather dashboard for any location, with the features of OpenSnow's "My Location" page and its own instrument-panel look, built on free [Open-Meteo](https://open-meteo.com/) data. It runs as a Cloudflare Worker.
 
 ## What's on the page
 
-- **Right Now**: temperature, feels-like, conditions, wind and gusts, stamped in the location's time zone.
-- **Daily Forecast**: a 15-day strip. Picking a day drives an hourly chart with 7 tabs (temperature, feels-like, precip chance with rain/mix/snow totals, wind with gusts and direction, cloud, humidity, lightning chance) and a sunrise, sunset, moonrise, moonset and moon phase panel.
-- **Forecast Range**: every run of every model (the last 3 runs of each deterministic model, plus ensemble means) on one chart for 1 to 15 days, for temperature, total precip, 12-hour precip, wind, gusts, cloud cover and snow level. Below it are cloud cover and precip chance by type. Pick a model to highlight its runs; hover to name a line; the readout shows blend, max and min, or the blend against the picked model.
-- **Precipitation by Model**: a 12-hour liquid precip heatmap (5am to 5pm and 5pm to 5am) for every run, shaded for rain, mix, snow and heavy snow, with N/A where a run ends and a Storm Totals toggle.
-- **More Information**: the forecast point and elevation, update time, and how to read the data.
+- **Now**: temperature, feels-like, conditions, wind and gusts, stamped in the location's time zone.
+- **15-Day Outlook**: a 15-day strip. Picking a day drives an hourly chart with 7 tabs (temperature, feels-like, precip chance with rain/mix/snow totals, wind with gusts and direction, cloud, humidity, lightning chance) and a sunrise, sunset, moonrise, moonset and moon phase panel.
+- **Model Spread**: every run of every model (the last 3 runs of each deterministic model, plus ensemble means) on one chart for 1 to 15 days, for temperature, total precip, 12-hour precip, wind, gusts, cloud cover and snow level. Below it are cloud cover and precip chance by type. Pick a model to highlight its runs; hover to name a line; the readout shows blend, max and min, or the blend against the picked model.
+- **Precip by Model Run**: a 12-hour liquid precip heatmap (5am to 5pm and 5pm to 5am) for every run, shaded for rain, mix, snow and heavy snow, with N/A where a run ends and a Storm Totals toggle.
+- **About This Forecast**: the forecast point and elevation, update time, and how to read the data.
 - Place search (cities, mountains, airports, or `lat, lon`), browser geolocation, favorites, °F/°C, and shareable URLs (`?lat=..&lon=..&name=..#day3`).
 
 ## Models
@@ -31,7 +31,7 @@ Past runs come from the [Single Runs API](https://open-meteo.com/en/docs/single-
 
 ## Main forecast and blend
 
-Right Now, the daily strip, the hourly tabs and the **blend** (the thick line and the top table row) come from one main forecast:
+Now, the 15-day strip, the hourly tabs and the **blend** (the thick line and the top table row) come from one main forecast:
 
 - **In the US:** NOAA's National Blend of Models (NBM), which blends about 30 models and corrects them against observations. It covers roughly 11 days, then fades over 12 hours into Open-Meteo's `best_match`. Over one week of late-October next-day forecasts at 15 US airports, NBM's mean temperature error was 1.43 °C against 1.96 °C for best match. It was better at 12 of the 15 stations, slightly worse at three mountain stations (Denver, Truckee, Eagle) and about 7% worse on wind.
 - **Elsewhere:** Open-Meteo's `best_match`, the best-suited local model at each lead time.
@@ -55,7 +55,7 @@ browser ── /api/forecast?lat&lon ──► Worker ──► Open-Meteo (best
 - `src/shared/` builds the bundle and runs in both the Worker and the browser: `bundle.ts` (pipeline), `primary.ts` (NBM and best match merge), `snowlevel.ts`, `models.ts`, `openmeteo.ts`, `moon.ts`, `derive.ts`.
 - Run requests go out three at a time, because Open-Meteo rejects too many heavy requests at once. Its transient "too many concurrent requests" errors are retried. US-only models (NBM, HRRR) and RDPS aren't requested outside their areas.
 - `src/worker/index.ts` serves `/api/forecast` and the static page.
-- `src/client/` is the Preact UI.
+- `src/client/` is the Preact UI. `styles.css` holds layout; `theme.css` holds the look (graphite surfaces, IBM Plex type, one chartreuse signal color, and a light "paper chart recorder" mode) and defines every color token the charts read.
 
 Daily values are recomputed from hourly data in real local days, because Open-Meteo buckets daily values with today's UTC offset, which shifts days by an hour after a daylight-saving change.
 

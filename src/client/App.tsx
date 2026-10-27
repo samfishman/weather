@@ -109,7 +109,7 @@ export function App() {
     const blendQuery = blendMode === 'auto' ? '' : `${place.mine ? '?' : '&'}blend=${blendMode}`;
     const url = `${location.pathname}${placeToSearch(place)}${blendQuery}${day ? `#day${day}` : ''}`;
     if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
-    document.title = place.mine ? 'My Location | Weather' : `${placeTitle(place)} | Weather`;
+    document.title = place.mine ? 'Current Location | Isobar' : `${placeTitle(place)} | Isobar`;
   }, [place, day]);
 
   const pick = (p: Place) => {
@@ -132,7 +132,7 @@ export function App() {
   const selectDay = (d: number) => {
     setDay(d);
     if (bundle) {
-      // Move the Forecast Range marker to the middle of that day's daytime period (or now, for today).
+      // Move the Model Spread marker to the middle of that day's daytime period (or now, for today).
       setMarker(d === 0 ? nowIndex(bundle) : dayStarts(bundle)[d] + 11);
     }
   };
@@ -146,7 +146,7 @@ export function App() {
         {place && (
           <div class="titlebar">
             <div>
-              <h1>{place.mine ? 'My Location' : placeTitle(place)}</h1>
+              <h1>{place.mine ? 'Current Location' : placeTitle(place)}</h1>
               <div class="subtitle">
                 <Icon name="pin" size={15} />
                 <a href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=11/${place.lat}/${place.lon}`} target="_blank" rel="noreferrer">

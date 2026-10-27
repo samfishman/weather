@@ -9,7 +9,7 @@ export function RightNow({ bundle, units }: { bundle: Bundle; units: Units }) {
   const dialog = useRef<HTMLDialogElement>(null);
   return (
     <section class="section">
-      <h2>Right Now</h2>
+      <h2>Now</h2>
       <div class="card">
         <div class="now-grid">
           <div class="now-cell">

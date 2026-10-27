@@ -1,4 +1,4 @@
-// Turns bundle series into what Forecast Range and Precipitation by Model draw, in display units.
+// Turns bundle series into what Model Spread and Precip by Model Run draw, in display units.
 
 import { MODEL_BY_KEY, type ModelKey } from '../shared/models';
 import { periodBounds, precipType, sumRange, type Period, type PrecipType } from '../shared/derive';

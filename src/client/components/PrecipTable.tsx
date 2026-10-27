@@ -83,7 +83,7 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
 
   return (
     <section class="section">
-      <h2>Precipitation by Model</h2>
+      <h2>Precip by Model Run</h2>
       <div class="card">
         <div class="controls">
           <ModelSelect bundle={bundle} value={model} onChange={onModel} />
@@ -136,7 +136,7 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
           <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--rain) 28%, transparent), var(--rain))' }}>RAIN</div>
           <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--mix) 28%, transparent), var(--mix))' }}>MIX</div>
           <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--snow) 28%, transparent), var(--snow))' }}>SNOW</div>
-          <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--heavy-snow) 45%, transparent), var(--heavy-snow))' }}>MORE SNOW</div>
+          <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--heavy-snow) 45%, transparent), var(--heavy-snow))' }}>HEAVY SNOW</div>
         </div>
         <p class="note center" style={{ margin: '6px auto 14px' }}>
           Liquid precipitation per 12 hours ({units === 'imperial' ? 'inches' : 'mm'}), 5am to 5pm and 5pm to 5am local.

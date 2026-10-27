@@ -1,4 +1,4 @@
-// Registry of the forecast models shown in Forecast Range and Precipitation by Model.
+// Registry of the forecast models shown in Model Spread and Precip by Model Run.
 // `api` is the Open-Meteo model name; `meta` is the dataset whose meta.json gives run times.
 
 export type ModelKey =

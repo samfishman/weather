@@ -1,4 +1,4 @@
-// The main forecast (Right Now, daily strip, hourly tabs and the blend line): NOAA's National Blend of
+// The main forecast (Now, the 15-day strip, hourly tabs and the blend line): NOAA's National Blend of
 // Models where it covers the point, Open-Meteo's best match elsewhere and after NBM's ~11-day range.
 //
 // NBM blends ~30 models and corrects them against observations. Over one week of late-October day-1
