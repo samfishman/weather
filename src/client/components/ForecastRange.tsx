@@ -96,7 +96,13 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(900);
   const [hover, setHover] = useState<Hover | null>(null);
+  const [fontsReady, setFontsReady] = useState(false);
   const tz = bundle.location.timezone;
+
+  useEffect(() => {
+    // Canvas text doesn't re-render when a web font finishes loading, so redraw then.
+    document.fonts?.ready.then(() => setFontsReady(true));
+  }, []);
 
   useLayoutEffect(() => {
     const el = wrap.current;
@@ -255,33 +261,41 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
       ctx.fillText(label, PAD_L - 6, gy);
     }
     ctx.textBaseline = 'alphabetic';
-    // Midnight lines and day labels.
-    const dayLabelEvery = plotW / days < 46 ? 2 : 1;
-    ctx.textAlign = 'center';
-    starts.forEach((s, d) => {
+    // Midnight lines, then day and hour labels placed so none overlap (day labels win).
+    ctx.strokeStyle = v('--grid');
+    starts.forEach((s) => {
       if (s > xEnd) return;
       const gx = Math.round(x(s)) + 0.5;
-      ctx.strokeStyle = v('--grid');
       for (const [top, bottom] of [[upperTop, upperBottom], [lowerTop, lowerBottom]]) {
         ctx.beginPath();
         ctx.moveTo(gx, top);
         ctx.lineTo(gx, bottom);
         ctx.stroke();
       }
-      if (d < days && d % dayLabelEvery === 0) {
-        ctx.fillStyle = v('--text-3');
-        const t = bundle.grid.start + s * bundle.grid.step;
-        const label = days === 1 ? fmtDate(t, tz) : fmtDayShort(t, tz);
-        ctx.fillText(label, x(days <= 2 ? s + 1.5 : s) + (days <= 2 ? 10 : 0), upperBottom + 15);
-      }
+    });
+    const taken: [number, number][] = [];
+    const place = (text: string, cx: number, size: number) => {
+      ctx.font = font(size);
+      const w = ctx.measureText(text).width;
+      const c = Math.max(PAD_L + w / 2, Math.min(width - PAD_R - w / 2, cx));
+      const box: [number, number] = [c - w / 2 - 4, c + w / 2 + 4];
+      if (taken.some(([a, b]) => box[0] < b && box[1] > a)) return;
+      taken.push(box);
+      ctx.fillText(text, c, upperBottom + 15);
+    };
+    ctx.textAlign = 'center';
+    ctx.fillStyle = v('--text-3');
+    starts.forEach((s, d) => {
+      if (s > xEnd || d >= days) return;
+      const t = bundle.grid.start + s * bundle.grid.step;
+      // Short ranges label the middle of the day; long ones label each midnight.
+      const cx = days <= 2 ? x(s + 12) : x(s);
+      place(days === 1 ? fmtDate(t, tz) : fmtDayShort(t, tz), cx, 11);
     });
     if (days <= 3) {
-      // Hour ticks on short ranges.
-      ctx.fillStyle = v('--text-3');
-      ctx.font = font(10);
-      for (let i = 6; i < xEnd; i += 6) {
-        if (starts.includes(i)) continue;
-        ctx.fillText(fmtHourShort(bundle.grid.start + i * bundle.grid.step, tz), x(i), upperBottom + 15);
+      for (let i = 3; i < xEnd; i += 3) {
+        if (starts.includes(i) || (days <= 2 && starts.some((s) => i === s + 12))) continue;
+        place(fmtHourShort(bundle.grid.start + i * bundle.grid.step, tz), x(i), 10);
       }
     }
 
@@ -442,7 +456,7 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
       ctx.stroke();
     }
     ctx.setLineDash([]);
-  }, [width, height, lines, yDomain, model, hover, marker, days, metric, units, bundle, xEnd]);
+  }, [width, height, lines, yDomain, model, hover, marker, days, metric, units, bundle, xEnd, fontsReady]);
 
   const onMove = (e: PointerEvent) => {
     const rect = canvas.current!.getBoundingClientRect();

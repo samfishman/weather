@@ -349,8 +349,8 @@ function MoonGlyph({ phase }: { phase: number }) {
   const d = `M15 ${15 - r} A${r} ${r} 0 0 ${sweepOuter} 15 ${15 + r} A${rx} ${r} 0 0 ${sweepInner} 15 ${15 - r} Z`;
   return (
     <svg width={30} height={30} viewBox="0 0 30 30" aria-hidden="true">
-      <circle cx={15} cy={15} r={r} fill="#3a3d42" stroke="var(--text-3)" stroke-width={1} />
-      <path d={d} fill="#f2e6b0" />
+      <circle cx={15} cy={15} r={r} fill="var(--moon-dark)" stroke="var(--text-3)" stroke-width={1} />
+      <path d={d} fill="var(--moon-lit)" />
     </svg>
   );
 }

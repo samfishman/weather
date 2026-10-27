@@ -23,9 +23,14 @@ type Cell = { kind: 'value'; mm: number; periodMm: number; type: PrecipType; fir
 // Amount thresholds (inches of liquid per 12 hours) for the four shades of each ramp.
 const STEPS_IN = [0.01, 0.1, 0.25, 0.5];
 
+/** 1 (light) to 4 (heavy) for a 12-hour amount; exposed as data-step so themes can style cells. */
+function shadeStep(periodMm: number): number {
+  return Math.max(1, STEPS_IN.filter((s) => periodMm / 25.4 >= s).length);
+}
+
 function shade(type: PrecipType, periodMm: number): string {
   const inches = periodMm / 25.4;
-  const step = STEPS_IN.filter((s) => inches >= s).length; // 1..4
+  const step = shadeStep(periodMm);
   // Heavy snow gets its own orange ramp ("more snow"), as on OpenSnow.
   const base = type === 'snow' && inches >= 0.5 ? 'var(--heavy-snow)' : `var(--${type})`;
   const alpha = [0, 28, 45, 65, 88][Math.max(1, step)];
@@ -114,6 +119,8 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
                         key={k}
                         class={`cell ${c.kind === 'na' ? 'na' : ''} ${c.kind === 'hatch' ? 'hatch' : ''} ${c.kind === 'value' && c.first ? 'first' : ''}`}
                         style={c.kind === 'value' ? { background: shade(c.type, c.periodMm) } : undefined}
+                        data-type={c.kind === 'value' ? c.type : undefined}
+                        data-step={c.kind === 'value' ? shadeStep(c.periodMm) : undefined}
                         title={c.kind === 'value' ? `${r.label}: ${fmtPrecipCell(c.mm, units)}${units === 'imperial' ? '"' : ' mm'} ${c.type}` : undefined}
                       >
                         {cellText(c)}
