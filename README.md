@@ -1,6 +1,6 @@
 # Isobar
 
-A weather dashboard for any location, with the features of OpenSnow's "My Location" page and its own instrument-panel look, built on free [Open-Meteo](https://open-meteo.com/) data. It runs as a Cloudflare Worker.
+A weather dashboard for any location, with the features of OpenSnow's "My Location" page and its own instrument-panel look, built on free [Open-Meteo](https://open-meteo.com/) data. It runs as a Cloudflare Worker at https://weather.sfishm.workers.dev.
 
 ## What's on the page
 
