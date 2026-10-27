@@ -26,11 +26,13 @@ export interface ModelDef {
   meta: string;
   /** Hours between the runs we show. Hourly models are stepped by 6 h on synoptic hours. */
   stepHours: number;
-  /** True when the model only covers part of the globe (it is hidden where it has no data). */
-  regional?: boolean;
+  /** Rough bounding box [latMin, latMax, lonMin, lonMax] for regional models; outside it they aren't requested. */
+  domain?: [number, number, number, number];
   /** NBM publishes its own snow level (NWS wet-bulb 0.5 °C method); use it instead of computing one. */
   nativeSnowLevel?: boolean;
 }
+
+const CONUS: [number, number, number, number] = [20, 55, -135, -60];
 
 // Order matches OpenSnow's table: long-range global models first, short-range regional last.
 export const MODELS: ModelDef[] = [
@@ -40,12 +42,18 @@ export const MODELS: ModelDef[] = [
   { key: 'eps', label: 'European Ens (EPS)', short: 'EPS', flag: 'eu', kind: 'ensemble', api: 'ecmwf_ifs025', meta: 'ecmwf_ifs025_ensemble', stepHours: 6 },
   { key: 'gfs', label: 'American (GFS)', short: 'GFS', flag: 'us', kind: 'deterministic', api: 'gfs_seamless', meta: 'ncep_gfs013', stepHours: 6 },
   { key: 'aigfs', label: 'American AI (AIGFS)', short: 'AIGFS', flag: 'us', kind: 'deterministic', api: 'ncep_aigfs025', meta: 'ncep_aigfs025', stepHours: 6 },
-  { key: 'nbm', label: 'American Blend (NBM)', short: 'NBM', flag: 'us', kind: 'deterministic', api: 'ncep_nbm_conus', meta: 'ncep_nbm_conus', stepHours: 6, regional: true, nativeSnowLevel: true },
+  { key: 'nbm', label: 'American Blend (NBM)', short: 'NBM', flag: 'us', kind: 'deterministic', api: 'ncep_nbm_conus', meta: 'ncep_nbm_conus', stepHours: 6, domain: CONUS, nativeSnowLevel: true },
   { key: 'gdps', label: 'Canadian (GDPS)', short: 'GDPS', flag: 'ca', kind: 'deterministic', api: 'gem_global', meta: 'cmc_gem_gdps_15km', stepHours: 12 },
   { key: 'icon', label: 'German (ICON)', short: 'ICON', flag: 'de', kind: 'deterministic', api: 'icon_seamless', meta: 'dwd_icon', stepHours: 6 },
-  { key: 'rdps', label: 'Canadian Regional (RDPS)', short: 'RDPS', flag: 'ca', kind: 'deterministic', api: 'gem_regional', meta: 'cmc_gem_rdps_10km', stepHours: 6, regional: true },
-  { key: 'hrrr', label: 'American Hi-Res (HRRR)', short: 'HRRR', flag: 'us', kind: 'deterministic', api: 'gfs_hrrr', meta: 'ncep_hrrr_conus', stepHours: 6, regional: true },
+  { key: 'rdps', label: 'Canadian Regional (RDPS)', short: 'RDPS', flag: 'ca', kind: 'deterministic', api: 'gem_regional', meta: 'cmc_gem_rdps_10km', stepHours: 6, domain: [20, 75, -170, -40] },
+  { key: 'hrrr', label: 'American Hi-Res (HRRR)', short: 'HRRR', flag: 'us', kind: 'deterministic', api: 'gfs_hrrr', meta: 'ncep_hrrr_conus', stepHours: 6, domain: CONUS },
 ];
+
+export function inDomain(m: ModelDef, lat: number, lon: number): boolean {
+  if (!m.domain) return true;
+  const [a, b, c, d] = m.domain;
+  return lat >= a && lat <= b && lon >= c && lon <= d;
+}
 
 export const MODEL_BY_KEY = Object.fromEntries(MODELS.map((m) => [m.key, m])) as Record<ModelKey, ModelDef>;
 

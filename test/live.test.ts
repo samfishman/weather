@@ -24,6 +24,16 @@ live('buildBundle (live)', () => {
       const sl = r.snowLevel.filter((v) => v != null).length;
       console.log(r.model.padEnd(7), 'hours', n, 'snowLevel hours', sl, 'sample', r.snowLevel.slice(30, 31));
     }
+    console.log('primary', b.primary, 'today high', b.daily.tmax[0], 'current', b.current.temp);
+    expect(b.primary.source).toBe('nbm');
     expect(b.runs.length).toBeGreaterThan(10);
+  }, 120_000);
+
+  it('falls back to best match outside NBM coverage (Chamonix)', async () => {
+    const b = await buildBundle(45.92, 6.87, { fetchJson: fetchJsonVia(fetch) });
+    console.log('Chamonix primary', b.primary, 'models', b.models.join(','), 'warnings', b.warnings);
+    expect(b.primary.source).toBe('best_match');
+    expect(b.models).not.toContain('nbm');
+    expect(b.models).not.toContain('hrrr');
   }, 120_000);
 });

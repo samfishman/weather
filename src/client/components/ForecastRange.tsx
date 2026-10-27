@@ -569,7 +569,10 @@ export function blendName(b: Bundle): string {
 }
 
 function blendNote(b: Bundle): string {
-  return b.blendMode === 'median'
-    ? 'The model median is the middle value of the latest run of every model at each hour.'
-    : "The blend is Open-Meteo's best match: the best-suited local model at each lead time, adjusted to this elevation.";
+  if (b.blendMode === 'median') return 'The model median is the middle value of the latest run of every model at each hour.';
+  if (b.primary.source === 'nbm' && b.primary.nbmUntil != null) {
+    const until = fmtDate(b.grid.start + b.primary.nbmUntil * b.grid.step, b.location.timezone);
+    return `The blend is NOAA's National Blend of Models (NBM), which corrects ~30 models against observations, through ${until}, then Open-Meteo's best match.`;
+  }
+  return "The blend is Open-Meteo's best match: the best-suited local model at each lead time, adjusted to this elevation.";
 }

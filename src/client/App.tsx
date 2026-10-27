@@ -50,7 +50,8 @@ export function App() {
   const [storm, setStorm] = useState(false);
   const [marker, setMarker] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<Place[]>(loadFavorites);
-  const blendMode: BlendMode = new URLSearchParams(location.search).get('blend') === 'median' ? 'median' : 'best_match';
+  const blendParam = new URLSearchParams(location.search).get('blend');
+  const blendMode: BlendMode = blendParam === 'median' || blendParam === 'best_match' ? blendParam : 'auto';
 
   const setUnits = (u: Units) => {
     setUnitsState(u);
@@ -105,7 +106,8 @@ export function App() {
   // Keep the URL shareable: place in the query, selected day in the hash.
   useEffect(() => {
     if (!place) return;
-    const url = `${location.pathname}${placeToSearch(place)}${blendMode === 'median' ? (place.mine ? '?blend=median' : '&blend=median') : ''}${day ? `#day${day}` : ''}`;
+    const blendQuery = blendMode === 'auto' ? '' : `${place.mine ? '?' : '&'}blend=${blendMode}`;
+    const url = `${location.pathname}${placeToSearch(place)}${blendQuery}${day ? `#day${day}` : ''}`;
     if (url !== location.pathname + location.search + location.hash) history.replaceState(null, '', url);
     document.title = place.mine ? 'My Location | Weather' : `${placeTitle(place)} | Weather`;
   }, [place, day]);

@@ -59,7 +59,9 @@ export interface Bundle {
     sunrise: number[];
     sunset: number[];
   };
-  /** The heavy line and top table row. Open-Meteo best match by default, or the median of the latest runs. */
+  /** Where the main forecast comes from: NBM through `nbmUntil` (grid hour), then Open-Meteo best match. */
+  primary: { source: 'nbm' | 'best_match'; nbmUntil: number | null };
+  /** The heavy line and top table row: the main forecast, or the median of the latest runs. */
   blend: RunSeries;
   blendMode: BlendMode;
   runs: Run[];
@@ -68,7 +70,8 @@ export interface Bundle {
   warnings: string[];
 }
 
-export type BlendMode = 'best_match' | 'median';
+/** auto: NBM where it covers the point, else best match. best_match: never NBM. median: median of the latest runs. */
+export type BlendMode = 'auto' | 'best_match' | 'median';
 
 export interface RunSeries {
   temp: Series;

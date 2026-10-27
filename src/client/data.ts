@@ -24,7 +24,7 @@ export async function loadBundle(
 ): Promise<{ bundle: Bundle; source: BundleSource }> {
   const q = new URLSearchParams({ lat: lat.toFixed(4), lon: lon.toFixed(4) });
   if (elevation != null) q.set('elev', String(Math.round(elevation)));
-  if (blendMode !== 'best_match') q.set('blend', blendMode);
+  if (blendMode !== 'auto') q.set('blend', blendMode);
   try {
     const res = await fetch(`/api/forecast?${q}`);
     if (res.ok) return { bundle: await res.json(), source: 'worker' };

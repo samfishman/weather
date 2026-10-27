@@ -29,7 +29,14 @@ A weather dashboard for any location, modeled on OpenSnow's "My Location" page a
 
 Past runs come from the [Single Runs API](https://open-meteo.com/en/docs/single-runs-api), and run times from each model's `meta.json`. Models with no data at a location are hidden.
 
-The **blend** (the thick line and the top table row) is Open-Meteo's `best_match`. Add `?blend=median` to the URL to use the median of the latest runs instead. The switch is `BlendMode` in `src/shared/types.ts`.
+## Main forecast and blend
+
+Right Now, the daily strip, the hourly tabs and the **blend** (the thick line and the top table row) come from one main forecast:
+
+- **In the US:** NOAA's National Blend of Models (NBM), which blends about 30 models and corrects them against observations. It covers roughly 11 days, then fades over 12 hours into Open-Meteo's `best_match`. Over one week of late-October next-day forecasts at 15 US airports, NBM's mean temperature error was 1.43 °C against 1.96 °C for best match. It was better at 12 of the 15 stations, slightly worse at three mountain stations (Denver, Truckee, Eagle) and about 7% worse on wind.
+- **Elsewhere:** Open-Meteo's `best_match`, the best-suited local model at each lead time.
+
+Two URL options change this: `?blend=best_match` never uses NBM, and `?blend=median` makes the blend the median of every model's latest run. The logic is in `src/shared/primary.ts` and `BlendMode` in `src/shared/types.ts`.
 
 ## Snow level
 
@@ -40,12 +47,13 @@ Checked against NBM's snow level at four ski areas, the median difference was wi
 ## How it works
 
 ```
-browser ── /api/forecast?lat&lon ──► Worker ──► Open-Meteo (best match, meta.json, single runs, ensembles)
+browser ── /api/forecast?lat&lon ──► Worker ──► Open-Meteo (best match, NBM, meta.json, single runs, ensembles)
    │                                   └── caches: bundle 15 min, single runs 24 h (KV + memory)
    └── if the Worker gets 429 from Open-Meteo, the browser builds the same bundle itself
 ```
 
-- `src/shared/` builds the bundle and runs in both the Worker and the browser: `bundle.ts` (pipeline), `snowlevel.ts`, `models.ts`, `openmeteo.ts`, `moon.ts`, `derive.ts`.
+- `src/shared/` builds the bundle and runs in both the Worker and the browser: `bundle.ts` (pipeline), `primary.ts` (NBM and best match merge), `snowlevel.ts`, `models.ts`, `openmeteo.ts`, `moon.ts`, `derive.ts`.
+- Run requests go out three at a time, because Open-Meteo rejects too many heavy requests at once. Its transient "too many concurrent requests" errors are retried. US-only models (NBM, HRRR) and RDPS aren't requested outside their areas.
 - `src/worker/index.ts` serves `/api/forecast` and the static page.
 - `src/client/` is the Preact UI.
 

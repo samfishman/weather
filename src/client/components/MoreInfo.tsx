@@ -37,7 +37,7 @@ export function MoreInfo({ bundle, units, source }: { bundle: Bundle; units: Uni
       <details class="card explainer" id="how-to-read">
         <summary>How to read this data</summary>
         <ul>
-          <li><b>Right Now</b> and the hourly tabs come from Open-Meteo's best match forecast, adjusted to the forecast point's elevation. They are model estimates, not station readings.</li>
+          <li><b>Right Now</b>, the daily strip and the hourly tabs come from the main forecast: in the US, NOAA's National Blend of Models (NBM), which corrects ~30 models against observations, for its ~11 days; elsewhere and after that, Open-Meteo's best match. Both are adjusted to the forecast point's elevation. They are model estimates, not station readings.</li>
           <li><b>Forecast Range</b> draws every model run as a thin line and the blend as a thick one. Tight lines mean the models agree; a wide spread means low confidence. Pick a model to highlight its latest run (thick orange) and the two runs before it (thin orange).</li>
           <li><b>Precipitation by Model</b> lists liquid precipitation per 12-hour period for each run. Color shows rain (green), mix (purple), snow (blue) or heavy snow (orange). Storm Totals adds up consecutive wet periods.</li>
           <li><b>Snow level</b> is the elevation where the wet-bulb temperature falls to 0.5°C, the method the National Weather Service uses. It is often 500 to 1,500 ft below the freezing level, more in dry air. NBM supplies its own snow level.</li>

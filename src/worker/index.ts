@@ -73,13 +73,14 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
     return json({ error: 'lat and lon are required' }, 400);
   }
-  const blendMode: BlendMode = params.get('blend') === 'median' ? 'median' : 'best_match';
+  const b = params.get('blend');
+  const blendMode: BlendMode = b === 'median' || b === 'best_match' ? b : 'auto';
   const elevParam = params.get('elev');
   const elevation = elevParam != null && Number.isFinite(Number(elevParam)) ? Number(elevParam) : null;
   // Round to ~1 km so nearby requests share a cache entry.
   const rlat = Math.round(lat * 100) / 100;
   const rlon = Math.round(lon * 100) / 100;
-  const key = `b:v1:${rlat},${rlon}:${blendMode}`;
+  const key = `b:v2:${rlat},${rlon}:${blendMode}`;
 
   const cacheHeaders = { 'cache-control': `public, max-age=${BUNDLE_TTL}` };
   const mem = memGet<string>(key);

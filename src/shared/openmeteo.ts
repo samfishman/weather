@@ -63,6 +63,20 @@ export function bestMatchUrl(lat: number, lon: number, levels: number[]): string
   });
 }
 
+/** NBM for the main forecast (same grid as best match). Open-Meteo returns HTTP 400 outside its domain. */
+export function nbmUrl(lat: number, lon: number): string {
+  return url(FORECAST, {
+    latitude: lat,
+    longitude: lon,
+    current: CURRENT_VARS.join(','),
+    hourly: [...BEST_MATCH_HOURLY.filter((v) => v !== 'surface_pressure'), 'snowfall_height'].join(','),
+    models: 'ncep_nbm_conus',
+    timezone: 'auto',
+    timeformat: 'unixtime',
+    forecast_days: FORECAST_DAYS,
+  });
+}
+
 /** One past or current run of several models, all initialised at `run` (unix seconds). */
 export function singleRunUrl(lat: number, lon: number, models: string[], run: number, levels: number[], extraVars: string[] = []): string {
   return url(SINGLE_RUNS, {

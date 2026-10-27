@@ -1,6 +1,6 @@
 // Builds the dashboard's data bundle from Open-Meteo. Runs in the Worker and, as a fallback, in the browser.
 
-import { MODELS, RUNS_PER_MODEL, type ModelDef, type ModelKey } from './models';
+import { MODELS, MODEL_BY_KEY, RUNS_PER_MODEL, inDomain, type ModelDef, type ModelKey } from './models';
 import {
   ENSEMBLE_HOURLY,
   bestMatchUrl,
@@ -8,11 +8,13 @@ import {
   levelsFor,
   elevationUrl,
   metaUrl,
+  nbmUrl,
   singleRunUrl,
   type OpenMeteoHourly,
 } from './openmeteo';
 import { snowLevel, type ProfileLevel } from './snowlevel';
 import { lightningCategory, median, round, roundSeries } from './derive';
+import { blendSeries, mergeHourly } from './primary';
 import type { BlendMode, Bundle, Run, RunSeries, Series } from './types';
 
 export type FetchJson = (url: string) => Promise<any>;
@@ -63,19 +65,24 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
     return null;
   });
+  const blendMode = opts.blendMode ?? 'auto';
+  const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
+  const nbmPromise = useNbm ? fetchJson(nbmUrl(lat, lon)).catch(() => null) : Promise.resolve(null);
   // The main forecast is required; let its error propagate.
   const best = await fetchJson(bestMatchUrl(lat, lon, levels));
   const metas = await metaPromise;
+  const nbm = await nbmPromise;
 
   const tz: string = best.timezone;
   const utcOffset: number = best.utc_offset_seconds;
   const elevation: number = best.elevation;
-  const bh: OpenMeteoHourly = best.hourly;
-  const start = bh.time[0];
-  const length = bh.time.length;
+  const start: number = best.hourly.time[0];
+  const length: number = best.hourly.time.length;
   const now = Math.floor(Date.now() / 1000);
 
-  // ---- Best match: hourly tabs, daily strip, Right Now ----
+  // ---- Main forecast: NBM blended into best match (hourly tabs, daily strip, Right Now) ----
+  const merged = mergeHourly(best.hourly, nbm?.hourly ?? null);
+  const bh = merged.hourly;
   const precip = bh.precipitation;
   const hourly: Bundle['hourly'] = {
     temp: roundSeries(bh.temperature_2m),
@@ -92,12 +99,16 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     rh: bh.relative_humidity_2m,
     isDay: bh.is_day,
     lightning: bh.time.map((_, i) => lightningCategory(bh.weather_code[i], bh.cape?.[i] ?? null, bh.precipitation_probability[i])),
-    snowLevel: bh.time.map((_, i) => snowLevel(profileAt(bh, i, elevation, levels, null))),
+    snowLevel: blendSeries(
+      bh.time.map((_, i) => snowLevel(profileAt(bh, i, elevation, levels, null))),
+      alignTo(bh.time, nbm?.hourly, 'snowfall_height'),
+      merged,
+    ).map((v) => (v == null ? null : Math.round(v))),
   };
 
   const daily = dailyFromHourly(bh, best.daily, tz);
 
-  const c = best.current;
+  const c = nbm?.current?.temperature_2m != null ? nbm.current : best.current;
   const current: Bundle['current'] = {
     time: c.time,
     temp: round(c.temperature_2m),
@@ -113,7 +124,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const wanted = new Map<number, ModelDef[]>();
   const runInits = new Map<ModelKey, number[]>();
   MODELS.forEach((m, i) => {
-    if (m.kind !== 'deterministic') return;
+    if (m.kind !== 'deterministic' || !inDomain(m, lat, lon)) return;
     const meta = metas[i];
     if (!meta?.last_run_initialisation_time) {
       warnings.push(`No run times for ${m.short}`);
@@ -131,15 +142,14 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   });
 
   const runs: Run[] = [];
-  await Promise.all(
-    [...wanted.entries()].map(async ([init, models]) => {
-      const results = await fetchRunGroup(fetchJson, lat, lon, init, models, levels);
-      for (const [model, h] of results) {
-        const age = runInits.get(model.key)!.indexOf(init);
-        runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
-      }
-    }),
-  );
+  // Open-Meteo rejects too many heavy requests at once, so fetch three run times at a time.
+  await mapLimit([...wanted.entries()], 3, async ([init, models]) => {
+    const results = await fetchRunGroup(withRetry(fetchJson), lat, lon, init, models, levels);
+    for (const [model, h] of results) {
+      const age = runInits.get(model.key)!.indexOf(init);
+      runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
+    }
+  });
 
   // ---- Ensembles: mean of all members, latest run only ----
   const ens = await ensemblePromise;
@@ -162,7 +172,6 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const models = MODELS.map((m) => m.key).filter((k) => withData.some((r) => r.model === k));
   withData.sort((a, b) => MODELS.findIndex((m) => m.key === a.model) - MODELS.findIndex((m) => m.key === b.model) || a.age - b.age);
 
-  const blendMode = opts.blendMode ?? 'best_match';
   const blend: RunSeries =
     blendMode === 'median'
       ? medianBlend(withData.filter((r) => r.age === 0), length)
@@ -184,6 +193,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     current,
     hourly,
     daily,
+    primary: { source: merged.nbmUntil != null ? 'nbm' : 'best_match', nbmUntil: merged.nbmUntil },
     blend,
     blendMode,
     runs: withData,
@@ -238,6 +248,30 @@ function mode(xs: number[]): number {
   return [...counts.entries()].sort((p, q) => q[1] - p[1] || q[0] - p[0])[0][0];
 }
 
+async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  const worker = async () => {
+    while (queue.length) await fn(queue.shift()!);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Retry Open-Meteo's "Too many concurrent requests" (a 429 that clears in a moment), not its rate limits. */
+function withRetry(fetchJson: FetchJson): FetchJson {
+  return async (url) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fetchJson(url);
+      } catch (e) {
+        if (attempt >= 3 || !(e instanceof UpstreamError) || e.status !== 429 || !/concurrent/i.test(e.message)) throw e;
+        await sleep(700 * (attempt + 1));
+      }
+    }
+  };
+}
+
 /** Fetch one run time for several models; if the combined request fails, retry each model alone. */
 async function fetchRunGroup(
   fetchJson: FetchJson,
@@ -268,6 +302,16 @@ async function fetchRunGroup(
     );
     return each.flat();
   }
+}
+
+/** A variable from another hourly response, aligned to `times` by timestamp. */
+function alignTo(times: number[], h: OpenMeteoHourly | undefined, name: string): (number | null)[] {
+  if (!h?.[name]) return times.map(() => null);
+  const pos = new Map(h.time.map((t, j) => [t, j]));
+  return times.map((t) => {
+    const j = pos.get(t);
+    return j == null ? null : (h[name][j] ?? null);
+  });
 }
 
 function pick(h: OpenMeteoHourly, name: string, api: string | null): (number | null)[] | undefined {
