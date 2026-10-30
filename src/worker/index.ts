@@ -93,7 +93,9 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   // Round to ~1 km so nearby requests share a cache entry.
   const rlat = Math.round(lat * 100) / 100;
   const rlon = Math.round(lon * 100) / 100;
-  const key = `b:v2:${rlat},${rlon}:${blendMode}`;
+  // A chosen elevation changes the forecast, so it is part of the key (to the nearest 10 m).
+  const elevKey = elevation == null ? 'terrain' : String(Math.round(elevation / 10) * 10);
+  const key = `b:v3:${rlat},${rlon}:${elevKey}:${blendMode}`;
 
   const cacheHeaders = { 'cache-control': `public, max-age=${BUNDLE_TTL}` };
   const mem = memGet<string>(key);

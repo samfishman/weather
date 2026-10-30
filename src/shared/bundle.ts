@@ -11,6 +11,7 @@ import {
   nbmUrl,
   singleRunUrl,
   type OpenMeteoHourly,
+  type Point,
 } from './openmeteo';
 import { snowLevel, type ProfileLevel } from './snowlevel';
 import { lightningCategory, median, round, roundSeries } from './derive';
@@ -55,21 +56,23 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const elevationHint =
     opts.elevation ?? (await fetchJson(elevationUrl(lat, lon)).then((r) => r.elevation?.[0] ?? null, () => null));
   const levels = levelsFor(elevationHint);
+  // A requested elevation is forecast exactly; otherwise Open-Meteo uses the terrain under the point.
+  const pt = { lat, lon, elevation: opts.elevation ?? null };
 
   // Run times; retry once since a missing one drops that model.
   const getMeta = (ds: string): Promise<Meta | null> =>
     fetchJson(metaUrl(ds)).catch(() => fetchJson(metaUrl(ds))).catch(() => null);
   const metaPromise = Promise.all(MODELS.map((m) => getMeta(m.meta)));
   const ensembleModels = MODELS.filter((m) => m.kind === 'ensemble');
-  const ensemblePromise = fetchJson(ensembleUrl(lat, lon, ensembleModels.map((m) => m.api))).catch((e) => {
+  const ensemblePromise = fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
     warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
     return null;
   });
   const blendMode = opts.blendMode ?? 'auto';
   const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
-  const nbmPromise = useNbm ? fetchJson(nbmUrl(lat, lon)).catch(() => null) : Promise.resolve(null);
+  const nbmPromise = useNbm ? fetchJson(nbmUrl(pt)).catch(() => null) : Promise.resolve(null);
   // The main forecast is required; let its error propagate.
-  const best = await fetchJson(bestMatchUrl(lat, lon, levels));
+  const best = await fetchJson(bestMatchUrl(pt, levels));
   const metas = await metaPromise;
   const nbm = await nbmPromise;
 
@@ -144,7 +147,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const runs: Run[] = [];
   // Open-Meteo rejects too many heavy requests at once, so fetch three run times at a time.
   await mapLimit([...wanted.entries()], 3, async ([init, models]) => {
-    const results = await fetchRunGroup(withRetry(fetchJson), lat, lon, init, models, levels);
+    const results = await fetchRunGroup(withRetry(fetchJson), pt, init, models, levels);
     for (const [model, h] of results) {
       const age = runInits.get(model.key)!.indexOf(init);
       runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
@@ -275,15 +278,14 @@ function withRetry(fetchJson: FetchJson): FetchJson {
 /** Fetch one run time for several models; if the combined request fails, retry each model alone. */
 async function fetchRunGroup(
   fetchJson: FetchJson,
-  lat: number,
-  lon: number,
+  pt: Point,
   init: number,
   models: ModelDef[],
   levels: number[],
 ): Promise<[ModelDef, OpenMeteoHourly][]> {
   const extra = (ms: ModelDef[]) => (ms.some((m) => m.nativeSnowLevel) ? ['snowfall_height'] : []);
   try {
-    const res = await fetchJson(singleRunUrl(lat, lon, models.map((m) => m.api), init, levels, extra(models)));
+    const res = await fetchJson(singleRunUrl(pt, models.map((m) => m.api), init, levels, extra(models)));
     return models.map((m) => [m, res.hourly]);
   } catch (e) {
     // Only a 400 ("run not available" for one of the models) is worth retrying model by model.
@@ -291,7 +293,7 @@ async function fetchRunGroup(
     if (models.length === 1) return [];
     const each = await Promise.all(
       models.map((m) =>
-        fetchJson(singleRunUrl(lat, lon, [m.api], init, levels, extra([m]))).then(
+        fetchJson(singleRunUrl(pt, [m.api], init, levels, extra([m]))).then(
           (res) => [[m, res.hourly] as [ModelDef, OpenMeteoHourly]],
           (err) => {
             if (err instanceof UpstreamError && err.status === 400) return [];

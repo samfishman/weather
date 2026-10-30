@@ -6,9 +6,11 @@ import { Daily, type HourlyTab } from './components/Daily';
 import { ForecastRange, type ModelChoice } from './components/ForecastRange';
 import { PrecipTable } from './components/PrecipTable';
 import { MoreInfo } from './components/MoreInfo';
+import { MapPicker } from './components/MapPicker';
+import { Elevation } from './components/Elevation';
 import { Icon } from './icons';
 import { loadBundle, type BundleSource } from './data';
-import { fmtElevation, type Units } from './format';
+import type { Units } from './format';
 import {
   dayFromHash,
   geolocate,
@@ -19,6 +21,7 @@ import {
   reverseGeocode,
   samePlace,
   saveFavorites,
+  terrainElevation,
   type Place,
 } from './location';
 import { dayStarts, nowIndex, type RangeMetric } from './metrics';
@@ -50,6 +53,9 @@ export function App() {
   const [storm, setStorm] = useState(false);
   const [marker, setMarker] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<Place[]>(loadFavorites);
+  const [mapOpen, setMapOpen] = useState(false);
+  // Terrain elevation under the current point, for the elevation readout and as the default forecast elevation.
+  const [terrain, setTerrain] = useState<{ key: string; m: number | null } | null>(null);
   const blendParam = new URLSearchParams(location.search).get('blend');
   const blendMode: BlendMode = blendParam === 'median' || blendParam === 'best_match' ? blendParam : 'auto';
 
@@ -88,13 +94,27 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const key = place ? `${place.lat.toFixed(3)},${place.lon.toFixed(3)},${blendMode}` : '';
+  const pointKey = place ? `${place.lat.toFixed(5)},${place.lon.toFixed(5)}` : '';
   useEffect(() => {
     if (!place) return;
     let cancelled = false;
+    terrainElevation(place.lat, place.lon).then((m) => !cancelled && setTerrain({ key: pointKey, m }));
+    return () => {
+      cancelled = true;
+    };
+  }, [pointKey]);
+
+  // The forecast is always for an explicit elevation: the place's own (listed or chosen), else the terrain under the point.
+  const terrainHere = terrain?.key === pointKey ? terrain.m : undefined;
+  const forecastElevation = place?.elevation ?? (terrainHere === undefined ? undefined : terrainHere);
+  const elevationSource = place?.elevation != null ? (place.elevationSource ?? 'listed') : 'terrain';
+  const key = place && forecastElevation !== undefined ? `${pointKey},${forecastElevation == null ? 'terrain' : Math.round(forecastElevation)},${blendMode}` : '';
+  useEffect(() => {
+    if (!place || !key) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    loadBundle(place.lat, place.lon, place.elevation ?? null, blendMode)
+    loadBundle(place.lat, place.lon, forecastElevation ?? null, blendMode)
       .then((r) => !cancelled && setData({ ...r, key }))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
       .finally(() => !cancelled && setLoading(false));
@@ -102,6 +122,12 @@ export function App() {
       cancelled = true;
     };
   }, [key]);
+
+  const changeElevation = (m: number | null) => {
+    if (!place) return;
+    const next: Place = m == null ? { ...place, elevation: undefined, elevationSource: undefined } : { ...place, elevation: Math.round(m * 10) / 10, elevationSource: 'custom' };
+    setPlace(next);
+  };
 
   // Keep the URL shareable: place in the query, selected day in the hash.
   useEffect(() => {
@@ -116,6 +142,7 @@ export function App() {
     setPlace(p);
     setDay(0);
     setMarker(null);
+    setMapOpen(false);
     history.pushState(null, '', `${location.pathname}${placeToSearch(p)}`);
   };
 
@@ -141,7 +168,8 @@ export function App() {
 
   return (
     <>
-      <TopBar onPick={pick} onMyLocation={useMyLocation} isMine={!!place?.mine} favorites={favorites} units={units} onUnits={setUnits} />
+      <TopBar onPick={pick} onMyLocation={useMyLocation} onMap={() => setMapOpen(true)} isMine={!!place?.mine} favorites={favorites} units={units} onUnits={setUnits} />
+      <MapPicker open={mapOpen} onClose={() => setMapOpen(false)} onPick={pick} current={place} units={units} />
       <main class="page">
         {place && (
           <div class="titlebar">
@@ -149,13 +177,20 @@ export function App() {
               <h1>{place.mine ? 'Current Location' : placeTitle(place)}</h1>
               <div class="subtitle">
                 <Icon name="pin" size={15} />
-                <a href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=11/${place.lat}/${place.lon}`} target="_blank" rel="noreferrer">
-                  {place.mine ? placeTitle(place) : `${place.lat.toFixed(2)}, ${place.lon.toFixed(2)}`}
-                  {bundle && !stale ? ` • ${fmtElevation(bundle.location.elevation, units)}` : ''}{' '}
-                  <Icon name="map" size={14} />
-                </a>
+                <button class="linkbtn subtitle-link" onClick={() => setMapOpen(true)} title="Choose a point on the map">
+                  {place.mine ? `${placeTitle(place)} · ` : ''}
+                  {place.lat.toFixed(4)}, {place.lon.toFixed(4)} <Icon name="map" size={14} />
+                </button>
               </div>
             </div>
+            <Elevation
+              forecast={forecastElevation ?? null}
+              source={elevationSource}
+              terrain={terrainHere ?? null}
+              placeName={place.name}
+              units={units}
+              onChange={changeElevation}
+            />
             <button class="iconbtn" onClick={toggleFav} aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'} title={isFav ? 'Remove from favorites' : 'Add to favorites'}>
               <Icon name={isFav ? 'starFilled' : 'star'} size={26} />
             </button>
