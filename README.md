@@ -9,7 +9,9 @@ A weather dashboard for any location, with the features of OpenSnow's "My Locati
 - **Model Spread**: every run of every model (the last 3 runs of each deterministic model, plus ensemble means) on one chart for 1 to 15 days, for temperature, total precip, 12-hour precip, wind, gusts, cloud cover and snow level. Below it are cloud cover and precip chance by type. Pick a model to highlight its runs; hover to name a line; the readout shows blend, max and min, or the blend against the picked model.
 - **Precip by Model Run**: a 12-hour liquid precip heatmap (5am to 5pm and 5pm to 5am) for every run, shaded for rain, mix, snow and heavy snow, with N/A where a run ends and a Storm Totals toggle.
 - **About This Forecast**: the forecast point and elevation, update time, and how to read the data.
-- Place search (cities, mountains, airports, or `lat, lon`), browser geolocation, favorites, °F/°C, and shareable URLs (`?lat=..&lon=..&name=..#day3`).
+- **Map picker**: a topographic map (OpenTopoMap, with an OpenStreetMap streets layer). It shows the terrain elevation under the cursor. Click to choose a point, check or adjust its elevation, and forecast it.
+- **Forecast elevation** shown at the top, with where it came from (the place's listed elevation, the terrain under the pin, or set by you), a Change control, and a warning when the terrain under the pin differs by 300 m (about 1,000 ft) or more. Every Open-Meteo request is sent with that elevation, so all models are downscaled to it. In Yosemite Valley the floor is about 4,000 ft, but a pin a few hundred feet away on a wall can read 6,800 ft or more, roughly 10°F colder.
+- Place search (cities, mountains, airports, or `lat, lon`), browser geolocation, favorites, °F/°C, and shareable URLs (`?lat=..&lon=..&name=..&elev=..#day3`).
 
 ## Models
 

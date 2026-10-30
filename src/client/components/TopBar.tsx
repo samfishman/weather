@@ -6,13 +6,14 @@ import type { Units } from '../format';
 interface Props {
   onPick: (p: Place) => void;
   onMyLocation: () => void;
+  onMap: () => void;
   isMine: boolean;
   favorites: Place[];
   units: Units;
   onUnits: (u: Units) => void;
 }
 
-export function TopBar({ onPick, onMyLocation, isMine, favorites, units, onUnits }: Props) {
+export function TopBar({ onPick, onMyLocation, onMap, isMine, favorites, units, onUnits }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [active, setActive] = useState(0);
@@ -82,6 +83,10 @@ export function TopBar({ onPick, onMyLocation, isMine, favorites, units, onUnits
         <button class={`navbtn${isMine ? ' active' : ''}`} onClick={onMyLocation} title="Forecast for my location">
           <Icon name="locate" size={18} />
           <span>Locate</span>
+        </button>
+        <button class="navbtn" onClick={onMap} title="Choose a point on the map">
+          <Icon name="map" size={18} />
+          <span>Map</span>
         </button>
         <div class="favwrap">
           <button class={`navbtn${favOpen ? ' active' : ''}`} onClick={() => setFavOpen(!favOpen)} title="Saved locations">

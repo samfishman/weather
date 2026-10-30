@@ -22,6 +22,19 @@ export function levelVars(levels: number[]): string[] {
   return levels.flatMap((p) => [`temperature_${p}hPa`, `relative_humidity_${p}hPa`, `geopotential_height_${p}hPa`]);
 }
 
+/** A forecast point. With `elevation` (m), Open-Meteo downscales every model to that height; without it, it uses the 90 m terrain under the point. */
+export interface Point {
+  lat: number;
+  lon: number;
+  elevation?: number | null;
+}
+
+function pointParams(p: Point): Record<string, number> {
+  const out: Record<string, number> = { latitude: p.lat, longitude: p.lon };
+  if (p.elevation != null) out.elevation = Math.round(p.elevation);
+  return out;
+}
+
 function url(base: string, params: Record<string, string | number>): string {
   const q = Object.entries(params)
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v)).replace(/%2C/g, ',')}`)
@@ -50,10 +63,9 @@ export const RUN_HOURLY = [
 ];
 
 /** The main forecast: Open-Meteo's best match (the local best model at each lead time). */
-export function bestMatchUrl(lat: number, lon: number, levels: number[]): string {
+export function bestMatchUrl(p: Point, levels: number[]): string {
   return url(FORECAST, {
-    latitude: lat,
-    longitude: lon,
+    ...pointParams(p),
     current: CURRENT_VARS.join(','),
     hourly: [...BEST_MATCH_HOURLY, ...levelVars(levels)].join(','),
     daily: DAILY_VARS.join(','),
@@ -64,10 +76,9 @@ export function bestMatchUrl(lat: number, lon: number, levels: number[]): string
 }
 
 /** NBM for the main forecast (same grid as best match). Open-Meteo returns HTTP 400 outside its domain. */
-export function nbmUrl(lat: number, lon: number): string {
+export function nbmUrl(p: Point): string {
   return url(FORECAST, {
-    latitude: lat,
-    longitude: lon,
+    ...pointParams(p),
     current: CURRENT_VARS.join(','),
     hourly: [...BEST_MATCH_HOURLY.filter((v) => v !== 'surface_pressure'), 'snowfall_height'].join(','),
     models: 'ncep_nbm_conus',
@@ -78,10 +89,9 @@ export function nbmUrl(lat: number, lon: number): string {
 }
 
 /** One past or current run of several models, all initialised at `run` (unix seconds). */
-export function singleRunUrl(lat: number, lon: number, models: string[], run: number, levels: number[], extraVars: string[] = []): string {
+export function singleRunUrl(p: Point, models: string[], run: number, levels: number[], extraVars: string[] = []): string {
   return url(SINGLE_RUNS, {
-    latitude: lat,
-    longitude: lon,
+    ...pointParams(p),
     hourly: [...RUN_HOURLY, ...extraVars, ...levelVars(levels)].join(','),
     models: models.join(','),
     run: new Date(run * 1000).toISOString().slice(0, 16),
@@ -92,10 +102,9 @@ export function singleRunUrl(lat: number, lon: number, models: string[], run: nu
 
 export const ENSEMBLE_HOURLY = ['temperature_2m', 'precipitation', 'snowfall', 'wind_speed_10m', 'wind_gusts_10m', 'cloud_cover'];
 
-export function ensembleUrl(lat: number, lon: number, models: string[]): string {
+export function ensembleUrl(p: Point, models: string[]): string {
   return url(ENSEMBLE, {
-    latitude: lat,
-    longitude: lon,
+    ...pointParams(p),
     hourly: ENSEMBLE_HOURLY.join(','),
     models: models.join(','),
     timeformat: 'unixtime',
