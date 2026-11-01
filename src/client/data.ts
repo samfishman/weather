@@ -1,6 +1,6 @@
 // Loads the bundle from the Worker, or builds it in the browser if the Worker can't reach Open-Meteo.
 
-import { buildBundle, fetchJsonVia, type FetchJson } from '../shared/bundle';
+import { buildBundle, fetchJsonVia, isTransient, type FetchJson } from '../shared/bundle';
 import type { BlendMode, Bundle } from '../shared/types';
 
 export type BundleSource = 'worker' | 'browser';
@@ -33,6 +33,13 @@ export async function loadBundle(
   } catch {
     // Fall through to the browser pipeline.
   }
-  const bundle = await buildBundle(lat, lon, { fetchJson: browserFetch, blendMode, elevation });
-  return { bundle, source: 'browser' };
+  // The Worker couldn't build it (Open-Meteo busy for its shared IP): build it here, with one more try after a pause.
+  const build = () => buildBundle(lat, lon, { fetchJson: browserFetch, blendMode, elevation });
+  try {
+    return { bundle: await build(), source: 'browser' };
+  } catch (e) {
+    if (!isTransient(e)) throw e;
+    await new Promise((r) => setTimeout(r, 2500));
+    return { bundle: await build(), source: 'browser' };
+  }
 }

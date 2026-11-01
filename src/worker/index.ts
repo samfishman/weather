@@ -1,6 +1,7 @@
 // Cloudflare Worker: serves the dashboard (static assets) and /api/forecast, which builds the data bundle
 // from Open-Meteo and caches it. Responses from the Single Runs API never change for a given run, so they
-// are cached for a day; the bundle itself is cached for 15 minutes per ~1 km grid cell.
+// are cached for a day. A bundle is fresh for 15 minutes; older copies are kept for a day and served when a
+// rebuild fails (Open-Meteo throttles bursts from the shared Workers IPs).
 
 import { UpstreamError, buildBundle, fetchJsonVia, type FetchJson } from '../shared/bundle';
 import type { BlendMode } from '../shared/types';
@@ -11,6 +12,7 @@ interface Env {
 }
 
 const BUNDLE_TTL = 15 * 60;
+const STALE_TTL = 24 * 60 * 60;
 const RUN_TTL = 24 * 60 * 60;
 const META_TTL = 5 * 60;
 
@@ -95,27 +97,36 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   const rlon = Math.round(lon * 100) / 100;
   // A chosen elevation changes the forecast, so it is part of the key (to the nearest 10 m).
   const elevKey = elevation == null ? 'terrain' : String(Math.round(elevation / 10) * 10);
-  const key = `b:v3:${rlat},${rlon}:${elevKey}:${blendMode}`;
+  const key = `b:v4:${rlat},${rlon}:${elevKey}:${blendMode}`;
 
-  const cacheHeaders = { 'cache-control': `public, max-age=${BUNDLE_TTL}` };
-  const mem = memGet<string>(key);
-  if (mem) return new Response(mem, { headers: { 'content-type': 'application/json; charset=utf-8', 'x-cache': 'memory', ...cacheHeaders } });
-  if (env.CACHE) {
-    const kv = await env.CACHE.get(key);
-    if (kv) {
-      memSet(key, kv, BUNDLE_TTL);
-      return new Response(kv, { headers: { 'content-type': 'application/json; charset=utf-8', 'x-cache': 'kv', ...cacheHeaders } });
+  const headers = (cache: string, maxAge = BUNDLE_TTL) => ({
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': `public, max-age=${maxAge}`,
+    'x-cache': cache,
+  });
+  const now = Date.now();
+  const mem = memGet<{ body: string; t: number }>(key);
+  if (mem && now - mem.t < BUNDLE_TTL * 1000) return new Response(mem.body, { headers: headers('memory') });
+  let stale = mem;
+  if (!stale && env.CACHE) {
+    const kv = await env.CACHE.getWithMetadata<{ t: number }>(key);
+    if (kv.value && kv.metadata?.t) {
+      stale = { body: kv.value, t: kv.metadata.t };
+      memSet(key, stale, STALE_TTL);
+      if (now - stale.t < BUNDLE_TTL * 1000) return new Response(stale.body, { headers: headers('kv') });
     }
   }
 
   try {
     const bundle = await buildBundle(rlat, rlon, { fetchJson: cachedFetchJson(env, ctx), blendMode, elevation });
     const body = JSON.stringify(bundle);
-    memSet(key, body, BUNDLE_TTL);
-    if (env.CACHE) ctx.waitUntil(env.CACHE.put(key, body, { expirationTtl: BUNDLE_TTL }));
-    return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8', 'x-cache': 'miss', ...cacheHeaders } });
+    memSet(key, { body, t: now }, STALE_TTL);
+    if (env.CACHE) ctx.waitUntil(env.CACHE.put(key, body, { expirationTtl: STALE_TTL, metadata: { t: now } }));
+    return new Response(body, { headers: headers('miss') });
   } catch (e) {
-    // 429 from Open-Meteo means this Worker's shared IP is rate limited; the browser falls back to calling Open-Meteo itself.
+    // Open-Meteo busy: serve the last good forecast if there is one, so the page never comes up empty.
+    if (stale) return new Response(stale.body, { headers: { ...headers('stale', 60), 'x-stale-age': String(Math.round((now - stale.t) / 1000)) } });
+    // Otherwise the browser falls back to calling Open-Meteo itself.
     const status = e instanceof UpstreamError ? e.status : 0;
     return json({ error: e instanceof Error ? e.message : String(e), upstreamStatus: status }, status === 429 ? 503 : 502);
   }

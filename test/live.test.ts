@@ -29,6 +29,13 @@ live('buildBundle (live)', () => {
     expect(b.runs.length).toBeGreaterThan(10);
   }, 120_000);
 
+  it('survives several bundles built at once from one IP', async () => {
+    const places: [number, number][] = [[37.7408, -119.5779], [47.6, -122.33]];
+    const results = await Promise.allSettled(places.map(([la, lo]) => buildBundle(la, lo, { fetchJson: fetchJsonVia(fetch) })));
+    console.log('burst', results.map((r) => (r.status === 'fulfilled' ? `${r.value.runs.length} runs` : `failed: ${r.reason}`)));
+    expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+  }, 180_000);
+
   it('falls back to best match outside NBM coverage (Chamonix)', async () => {
     const b = await buildBundle(45.92, 6.87, { fetchJson: fetchJsonVia(fetch) });
     console.log('Chamonix primary', b.primary, 'models', b.models.join(','), 'warnings', b.warnings);
