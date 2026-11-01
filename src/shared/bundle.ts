@@ -50,8 +50,12 @@ interface Meta {
 
 const HOUR = 3600;
 
+/** Most Open-Meteo requests in flight at once. It rejects bursts with "Too many concurrent requests". */
+export const MAX_CONCURRENT = 4;
+
 export async function buildBundle(lat: number, lon: number, opts: BuildOptions): Promise<Bundle> {
-  const { fetchJson } = opts;
+  // Every request goes through one queue and retries transient rejections.
+  const fetchJson = limitConcurrency(withRetry(opts.fetchJson), MAX_CONCURRENT);
   const warnings: string[] = [];
   const elevationHint =
     opts.elevation ?? (await fetchJson(elevationUrl(lat, lon)).then((r) => r.elevation?.[0] ?? null, () => null));
@@ -59,20 +63,20 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   // A requested elevation is forecast exactly; otherwise Open-Meteo uses the terrain under the point.
   const pt = { lat, lon, elevation: opts.elevation ?? null };
 
-  // Run times; retry once since a missing one drops that model.
-  const getMeta = (ds: string): Promise<Meta | null> =>
-    fetchJson(metaUrl(ds)).catch(() => fetchJson(metaUrl(ds))).catch(() => null);
-  const metaPromise = Promise.all(MODELS.map((m) => getMeta(m.meta)));
+  // Queued in priority order: the main forecast first, then NBM, ensembles and run times.
+  // The main forecast is required; its error propagates.
+  const bestPromise = fetchJson(bestMatchUrl(pt, levels));
+  const blendMode = opts.blendMode ?? 'auto';
+  const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
+  const nbmPromise = useNbm ? fetchJson(nbmUrl(pt)).catch(() => null) : Promise.resolve(null);
   const ensembleModels = MODELS.filter((m) => m.kind === 'ensemble');
   const ensemblePromise = fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
     warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
     return null;
   });
-  const blendMode = opts.blendMode ?? 'auto';
-  const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
-  const nbmPromise = useNbm ? fetchJson(nbmUrl(pt)).catch(() => null) : Promise.resolve(null);
-  // The main forecast is required; let its error propagate.
-  const best = await fetchJson(bestMatchUrl(pt, levels));
+  // Run times; a missing one drops that model.
+  const metaPromise = Promise.all(MODELS.map((m) => fetchJson(metaUrl(m.meta)).catch((): Meta | null => null)));
+  const best = await bestPromise;
   const metas = await metaPromise;
   const nbm = await nbmPromise;
 
@@ -147,7 +151,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const runs: Run[] = [];
   // Open-Meteo rejects too many heavy requests at once, so fetch three run times at a time.
   await mapLimit([...wanted.entries()], 3, async ([init, models]) => {
-    const results = await fetchRunGroup(withRetry(fetchJson), pt, init, models, levels);
+    const results = await fetchRunGroup(fetchJson, pt, init, models, levels);
     for (const [model, h] of results) {
       const age = runInits.get(model.key)!.indexOf(init);
       runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
@@ -261,16 +265,38 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Retry Open-Meteo's "Too many concurrent requests" (a 429 that clears in a moment), not its rate limits. */
-function withRetry(fetchJson: FetchJson): FetchJson {
+/** True for failures worth retrying: "Too many concurrent requests" (a 429 that clears in a moment), 5xx and network errors. Rate limits (other 429s) and 400s are not. */
+export function isTransient(e: unknown): boolean {
+  if (!(e instanceof UpstreamError)) return true;
+  if (e.status === 429) return /concurrent/i.test(e.message);
+  return e.status >= 500 || e.status === 0;
+}
+
+function withRetry(fetchJson: FetchJson, attempts = 4): FetchJson {
   return async (url) => {
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 1; ; attempt++) {
       try {
         return await fetchJson(url);
       } catch (e) {
-        if (attempt >= 3 || !(e instanceof UpstreamError) || e.status !== 429 || !/concurrent/i.test(e.message)) throw e;
-        await sleep(700 * (attempt + 1));
+        if (attempt >= attempts || !isTransient(e)) throw e;
+        await sleep(500 * attempt + Math.random() * 400);
       }
+    }
+  };
+}
+
+/** Wraps a FetchJson so at most `limit` requests run at once; the rest wait in order. */
+export function limitConcurrency(fetchJson: FetchJson, limit: number): FetchJson {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async (url) => {
+    if (active >= limit) await new Promise<void>((resolve) => waiting.push(resolve));
+    active++;
+    try {
+      return await fetchJson(url);
+    } finally {
+      active--;
+      waiting.shift()?.();
     }
   };
 }

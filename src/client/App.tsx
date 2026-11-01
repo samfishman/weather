@@ -26,6 +26,13 @@ import {
 } from './location';
 import { dayStarts, nowIndex, type RangeMetric } from './metrics';
 
+/** Open-Meteo's terse errors, in plain words. */
+function friendlyError(message: string): string {
+  if (/concurrent|rate|limit|429/i.test(message)) return 'the weather service is busy right now. Try again in a moment.';
+  if (/fetch|network|load failed/i.test(message)) return 'the network request failed. Check your connection and try again.';
+  return message;
+}
+
 const DEFAULT_PLACE: Place = { lat: 37.7749, lon: -122.4194, name: 'San Francisco', region: 'CA', countryCode: 'US' };
 const UNITS_KEY = 'weather:units';
 
@@ -54,6 +61,7 @@ export function App() {
   const [marker, setMarker] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<Place[]>(loadFavorites);
   const [mapOpen, setMapOpen] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // Terrain elevation under the current point, for the elevation readout and as the default forecast elevation.
   const [terrain, setTerrain] = useState<{ key: string; m: number | null } | null>(null);
   const blendParam = new URLSearchParams(location.search).get('blend');
@@ -109,6 +117,7 @@ export function App() {
   const forecastElevation = place?.elevation ?? (terrainHere === undefined ? undefined : terrainHere);
   const elevationSource = place?.elevation != null ? (place.elevationSource ?? 'listed') : 'terrain';
   const key = place && forecastElevation !== undefined ? `${pointKey},${forecastElevation == null ? 'terrain' : Math.round(forecastElevation)},${blendMode}` : '';
+  const loadKey = key && `${key}#${attempt}`;
   useEffect(() => {
     if (!place || !key) return;
     let cancelled = false;
@@ -121,7 +130,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [key]);
+  }, [loadKey]);
 
   const changeElevation = (m: number | null) => {
     if (!place) return;
@@ -197,11 +206,29 @@ export function App() {
           </div>
         )}
         {notice && <div class="banner">{notice}</div>}
-        {error && !bundle && <div class="banner">Couldn't load the forecast: {error}</div>}
+        {error && !bundle && (
+          <div class="banner banner-action">
+            <span>Couldn't load the forecast: {friendlyError(error)}</span>
+            <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>
+              {loading ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        )}
         {!bundle && !error && <div class="loading">Loading forecast…</div>}
         {bundle && (
           <div class={stale ? 'stale' : ''}>
-            {error && <div class="banner">Couldn't refresh the forecast: {error}</div>}
+            {error && (
+              <div class="banner banner-action">
+                <span>Couldn't refresh the forecast: {friendlyError(error)}</span>
+                <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>Retry</button>
+              </div>
+            )}
+            {!error && Date.now() / 1000 - bundle.generatedAt > 40 * 60 && (
+              <div class="banner banner-action">
+                <span>Showing the forecast from {Math.round((Date.now() / 1000 - bundle.generatedAt) / 60)} minutes ago; the weather service was busy.</span>
+                <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>Refresh</button>
+              </div>
+            )}
             <RightNow bundle={bundle} units={units} />
             <Daily bundle={bundle} units={units} day={Math.min(day, bundle.daily.time.length - 1)} onDay={selectDay} tab={tab} onTab={setTab} />
             <ForecastRange
