@@ -827,3 +827,47 @@ dialog.mapdlg { border-radius: var(--radius); background: var(--surface); box-sh
   /* Dim the bright topo tiles a touch so they sit in the dark panel. */
   .mapdlg .leaflet-tile-pane { filter: brightness(0.86) contrast(1.05) saturate(0.85); }
 }
+
+/* ---------------------------------------------------------------------------
+   Phone layout fixes
+--------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  /* Menus span the screen under the top bar instead of hanging off their buttons. */
+  .topbar .menu, .favwrap .menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - 72px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .menu-item { padding: 11px 12px; }
+  /* Control rows: selects first, then the metric pills on their own swipeable row. */
+  .controls { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; padding: 10px 12px; row-gap: 8px; }
+  .controls .vsep { display: none; }
+  .pills {
+    flex-basis: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+    padding-right: 24px;
+  }
+  .pills::-webkit-scrollbar { display: none; }
+  .pills .pill { flex: none; }
+  .switch { margin-left: auto; }
+  .select select { max-width: 62vw; }
+  /* Hourly chart fits the screen. */
+  .hourly { padding: 4px 10px 6px; overflow-x: hidden; }
+  /* Bigger tap targets. */
+  .elev-change { padding: 8px 4px; }
+  .subtitle-link { padding: 6px 0; }
+  .titlebar .iconbtn { align-self: flex-start; margin-top: 18px; }
+  .scrollbtn { width: 30px; height: 30px; }
+  /* Precip table: the lone "Precip (12 hr)" label adds nothing here, and a narrower name column shows more days. */
+  .controls > span.pill { display: none; }
+  .ptable .name { min-width: 0; padding: 0 6px; }
+  .ptable .name .mean { display: none; }
+}
