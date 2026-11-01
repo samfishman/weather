@@ -794,3 +794,36 @@ dialog.modal p { font-size: 13.5px; }
   .sunmoon > div { justify-content: flex-start; flex-wrap: nowrap; gap: 18px; padding: 11px 14px; }
   .sunmoon > div + div { border-left: 0; border-top: 1px solid var(--rule); }
 }
+
+/* ---------------------------------------------------------------------------
+   Forecast elevation readout and map picker
+--------------------------------------------------------------------------- */
+.elev-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; }
+.elev-num { font-family: var(--mono); font-size: 28px; letter-spacing: -0.02em; }
+.elev-change { font-family: var(--cond); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); text-decoration-color: var(--border); }
+.elev-change:hover { color: var(--signal); }
+.elev-src { font-family: var(--mono); font-size: 11px; }
+.elev-edit input, .pick-elev-input input { font-family: var(--mono); border-radius: var(--radius); background: var(--topbar-input); }
+.elev-edit input:focus, .pick-elev-input input:focus { outline: none; border-color: var(--signal-line); box-shadow: 0 0 0 3px var(--signal-soft); }
+.subtitle-link { font-family: var(--mono); font-size: 12px; color: var(--text-2); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.subtitle-link:hover { color: var(--text); }
+
+dialog.mapdlg { border-radius: var(--radius); background: var(--surface); box-shadow: var(--lift); }
+.mapdlg-head h3 { font-family: var(--cond); font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+.mapdlg-foot { background: var(--well); }
+.pick-name { font-family: var(--sans); font-weight: 500; }
+.pick-coords, .pick-elev, .maphover { font-family: var(--mono); }
+.pick-elev > span:first-child { font-family: var(--cond); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10.5px; }
+.maphover { border-radius: var(--radius); background: var(--surface-2); }
+
+/* Leaflet controls in the instrument palette. */
+.mapdlg .leaflet-container { background: var(--surface-2); font-family: var(--sans); }
+.mapdlg .leaflet-bar a, .mapdlg .leaflet-control-layers { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.mapdlg .leaflet-bar a:hover { background: var(--surface-3); }
+.mapdlg .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text-3); }
+.mapdlg .leaflet-control-attribution a { color: var(--text-2); }
+.mapdlg .leaflet-control-scale-line { background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text-2); border-color: var(--text-3); font-family: var(--mono); }
+@media (prefers-color-scheme: dark) {
+  /* Dim the bright topo tiles a touch so they sit in the dark panel. */
+  .mapdlg .leaflet-tile-pane { filter: brightness(0.86) contrast(1.05) saturate(0.85); }
+}

@@ -8,10 +8,15 @@ export interface Place {
   region?: string;
   country?: string;
   countryCode?: string;
+  /** Forecast elevation, m. Unset means the terrain under the point. */
   elevation?: number;
+  /** Where `elevation` came from: the terrain map, the place's listed elevation, or the person. */
+  elevationSource?: ElevationSource;
   /** True when this is the browser's own location. */
   mine?: boolean;
 }
+
+export type ElevationSource = 'terrain' | 'listed' | 'custom';
 
 export interface SearchResult extends Place {
   /** "City - Colorado, United States" */
@@ -91,6 +96,7 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
       country: r.country,
       countryCode: r.country_code,
       elevation: r.elevation,
+      elevationSource: r.elevation != null ? 'listed' : undefined,
       detail: `${featureType(r.feature_code)}${where ? ` - ${where}` : ''}`,
     };
   });
@@ -121,6 +127,18 @@ export async function reverseGeocode(lat: number, lon: number): Promise<Pick<Pla
   }
 }
 
+/** Terrain elevation (m) under a point, from Open-Meteo's 90 m elevation model. */
+export async function terrainElevation(lat: number, lon: number, signal?: AbortSignal): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat.toFixed(5)}&longitude=${lon.toFixed(5)}`, { signal });
+    const body: any = await res.json();
+    const e = body.elevation?.[0];
+    return typeof e === 'number' ? e : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---- URL state: ?lat=..&lon=..&name=..&region=..#day3 ----
 
 export function placeFromUrl(): Place | null {
@@ -135,6 +153,7 @@ export function placeFromUrl(): Place | null {
     region: q.get('region') ?? undefined,
     countryCode: q.get('cc') ?? undefined,
     elevation: q.has('elev') ? Number(q.get('elev')) : undefined,
+    elevationSource: (q.get('es') as ElevationSource | null) ?? (q.has('elev') ? 'listed' : undefined),
   };
 }
 
@@ -143,7 +162,9 @@ export function placeToSearch(p: Place | null): string {
   const q = new URLSearchParams({ lat: p.lat.toFixed(4), lon: p.lon.toFixed(4), name: p.name });
   if (p.region) q.set('region', p.region);
   if (p.countryCode) q.set('cc', p.countryCode);
-  if (p.elevation != null) q.set('elev', String(Math.round(p.elevation)));
+  // One decimal keeps an elevation typed in feet exact after a round trip through meters.
+  if (p.elevation != null) q.set('elev', String(Math.round(p.elevation * 10) / 10));
+  if (p.elevation != null && p.elevationSource && p.elevationSource !== 'listed') q.set('es', p.elevationSource);
   return `?${q}`;
 }
 

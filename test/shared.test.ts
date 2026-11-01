@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { snowLevel, wetBulb } from '../src/shared/snowlevel';
 import { compass, lightningCategory, periodBounds, periodOf, precipType, sumRange } from '../src/shared/derive';
 import { moonIllumination, moonPhaseName, moonTimes } from '../src/shared/moon';
-import { levelsFor } from '../src/shared/openmeteo';
+import { bestMatchUrl, levelsFor, singleRunUrl } from '../src/shared/openmeteo';
 
 describe('wetBulb', () => {
   it('matches psychrometric tables', () => {
@@ -66,6 +66,11 @@ describe('derive', () => {
     expect(compass(275)).toBe('W');
     expect(compass(250)).toBe('WSW');
     expect(compass(359)).toBe('N');
+  });
+  it('sends the forecast elevation to Open-Meteo only when one is chosen', () => {
+    expect(bestMatchUrl({ lat: 37.75, lon: -119.59, elevation: 1218.4 }, [])).toContain('elevation=1218');
+    expect(bestMatchUrl({ lat: 37.75, lon: -119.59 }, [])).not.toContain('elevation=');
+    expect(singleRunUrl({ lat: 37.75, lon: -119.59, elevation: 2600 }, ['gfs_seamless'], 1793016000, [])).toContain('elevation=2600');
   });
   it('requests only levels above the terrain', () => {
     expect(levelsFor(2500)).toEqual([750, 700, 650, 600, 550, 500]);
