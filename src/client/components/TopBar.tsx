@@ -109,7 +109,7 @@ export function TopBar({ onPick, onMyLocation, onMap, isMine, favorites, units, 
           <Icon name="search" size={17} />
           <input
             type="search"
-            placeholder="Search cities, mountains, airports, or lat, lon…"
+            placeholder="Search places"
             value={query}
             onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
             onKeyDown={onKey}

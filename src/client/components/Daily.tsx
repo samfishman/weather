@@ -118,7 +118,11 @@ function HourlyChart({ bundle, units, day, tab }: { bundle: Bundle; units: Units
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(Math.max(620, el.clientWidth - 32)));
+    // Fit the day to the card; on phones every other hour gets a value label.
+    const ro = new ResizeObserver(() => {
+      const cs = getComputedStyle(el);
+      setWidth(Math.max(300, el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)));
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

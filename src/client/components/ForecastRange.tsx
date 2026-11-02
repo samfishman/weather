@@ -505,19 +505,27 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
           <ModelSelect bundle={bundle} value={model} onChange={onModel} />
           <DaysSelect value={days} onChange={onDays} />
           <span class="vsep" />
-          {RANGE_METRICS.map((m) => (
-            <button class={`pill${m.key === metric ? ' active' : ''}`} key={m.key} onClick={() => onMetric(m.key)}>
-              {m.label}
-            </button>
-          ))}
+          <div class="pills" role="tablist" aria-label="Metric">
+            {RANGE_METRICS.map((m) => (
+              <button class={`pill${m.key === metric ? ' active' : ''}`} key={m.key} role="tab" aria-selected={m.key === metric} onClick={() => onMetric(m.key)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div class="chart-wrap" ref={wrap}>
           <canvas
             ref={canvas}
             style={{ width: `${width}px` }}
             onPointerMove={onMove}
-            onPointerLeave={() => setHover(null)}
-            onClick={() => hover && onMarker(hover.hour)}
+            onPointerDown={onMove}
+            onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+            onClick={(e) => {
+              // Taps don't hover first, so work out the hour from the click itself.
+              const rect = canvas.current!.getBoundingClientRect();
+              const px = e.clientX - rect.left;
+              if (px >= PAD_L && px <= PAD_L + plotW) onMarker(hourAtX(px));
+            }}
             aria-label={`${meta.label} from every model run`}
             role="img"
           />
@@ -570,7 +578,7 @@ export function ForecastRange({ bundle, units, model, onModel, days, onDays, met
               ? blendNote(bundle)
               : `The ${fmtRun(selectedRun.init)} run of ${MODEL_BY_KEY[model].label}${MODEL_BY_KEY[model].kind === 'ensemble' ? ' (mean of all members)' : ''}. ${MODEL_BY_KEY[model].kind === 'ensemble' ? '' : 'Thinner lines show the two runs before it.'}`}
             {metric === 'snowLevel' ? ' Snow level is where the wet-bulb temperature falls to 0.5°C (the NWS method).' : ''}
-            {' '}Hover a line to name it; click to move the marker.
+            {' '}Hover or tap a line to name it; click or tap to move the marker.
           </p>
         </div>
       </div>

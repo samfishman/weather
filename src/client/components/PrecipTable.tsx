@@ -70,7 +70,8 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
       { id: 'blend', label: `★ ${blendName(bundle)}`, model: 'blend' as const, groupStart: false, cells: rowCells(bundle.blend, periods, storm) },
       ...bundle.runs.map((r, i) => ({
         id: `${r.model}-${r.init}`,
-        label: runLabel(r) + (MODEL_BY_KEY[r.model].kind === 'ensemble' ? ' (mean)' : ''),
+        label: runLabel(r),
+        mean: MODEL_BY_KEY[r.model].kind === 'ensemble',
         model: r.model,
         groupStart: i === 0 || bundle.runs[i - 1].model !== r.model,
         cells: rowCells(r, periods, storm),
@@ -112,7 +113,10 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} class={[r.model === 'blend' ? 'blend' : '', r.model === model ? 'sel' : '', r.groupStart ? 'group-start' : ''].join(' ')}>
-                  <td class="name">{r.label}</td>
+                  <td class="name">
+                    {r.label}
+                    {'mean' in r && r.mean && <span class="mean"> (mean)</span>}
+                  </td>
                   {r.cells.map((c, k) => {
                     return (
                       <td
