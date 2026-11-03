@@ -871,3 +871,19 @@ dialog.mapdlg { border-radius: var(--radius); background: var(--surface); box-sh
   .ptable .name { min-width: 0; padding: 0 6px; }
   .ptable .name .mean { display: none; }
 }
+
+/* Full-screen map panels in the instrument palette. */
+.layerpanel, .maplegend, .radarbar, .fav-label { border-radius: var(--radius); }
+.layerpanel { background: var(--surface); box-shadow: var(--lift); }
+.lp-title, .lg-label { font-family: var(--mono); letter-spacing: 0.18em; }
+.lp-name { font-family: var(--sans); }
+.lp-note, .ms-precip, .radartime, .pick-coords { font-family: var(--mono); }
+.lp-bases .pill { flex: 1; justify-content: center; }
+.ms-day { border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--rule); }
+.ms-dname { font-family: var(--cond); text-transform: uppercase; letter-spacing: 0.1em; }
+.ms-temps { font-family: var(--mono); }
+.ms-temps b { font-weight: 500; color: var(--text); }
+.mapsheet { background: var(--well); }
+.fav-label { font-family: var(--cond); letter-spacing: 0.04em; }
+
+.maplegend-toggle { border-radius: var(--radius); font-family: var(--cond); letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; }

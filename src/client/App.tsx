@@ -178,7 +178,7 @@ export function App() {
   return (
     <>
       <TopBar onPick={pick} onMyLocation={useMyLocation} onMap={() => setMapOpen(true)} isMine={!!place?.mine} favorites={favorites} units={units} onUnits={setUnits} />
-      <MapPicker open={mapOpen} onClose={() => setMapOpen(false)} onPick={pick} current={place} units={units} />
+      <MapPicker open={mapOpen} onClose={() => setMapOpen(false)} onPick={pick} current={place} favorites={favorites} units={units} />
       <main class="page">
         {place && (
           <div class="titlebar">
