@@ -887,3 +887,17 @@ dialog.mapdlg { border-radius: var(--radius); background: var(--surface); box-sh
 .fav-label { font-family: var(--cond); letter-spacing: 0.04em; }
 
 .maplegend-toggle { border-radius: var(--radius); font-family: var(--cond); letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; }
+
+/* Alerts and snow summary in the instrument palette. */
+.alert { border-radius: var(--radius); box-shadow: var(--bezel); }
+.alert-event { font-family: var(--cond); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.alert-when, .alert-meta, .alerts-none, .sn-range, .sn-foot, .sn-val, .sn-name { font-family: var(--mono); }
+.alerts-none { letter-spacing: 0.02em; }
+.sn-label { font-family: var(--cond); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+.sn-big { font-family: var(--mono); font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.sn-unit { font-family: var(--mono); color: var(--text-3); }
+.sn-window + .sn-window { border-color: var(--rule); }
+.sn-windows { border-color: var(--rule); }
+.sn-foot { border-color: var(--rule); background: var(--well); }
+.sn-bar { border-radius: 2px 2px 0 0; }
+.sn-name { letter-spacing: 0; }

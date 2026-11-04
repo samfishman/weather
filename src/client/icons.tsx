@@ -158,7 +158,7 @@ export function precipChanceColor(pop: number | null): string | undefined {
   return 'var(--pop-low)';
 }
 
-export function Icon({ name, size = 16 }: { name: 'pin' | 'map' | 'star' | 'starFilled' | 'search' | 'locate' | 'wind' | 'info' | 'chevronLeft' | 'chevronRight' | 'chevronDown' | 'thermo' | 'drops' | 'cloud' | 'humidity' | 'bolt' | 'sunrise' | 'moonPhase' | 'clock'; size?: number }) {
+export function Icon({ name, size = 16 }: { name: 'pin' | 'map' | 'star' | 'starFilled' | 'search' | 'locate' | 'wind' | 'info' | 'chevronLeft' | 'chevronRight' | 'chevronDown' | 'chevronUp' | 'warning' | 'thermo' | 'drops' | 'cloud' | 'humidity' | 'bolt' | 'sunrise' | 'moonPhase' | 'clock'; size?: number }) {
   const paths: Record<string, JSX.Element> = {
     pin: <path {...sw} d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />,
     map: <path {...sw} d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" />,
@@ -171,6 +171,8 @@ export function Icon({ name, size = 16 }: { name: 'pin' | 'map' | 'star' | 'star
     chevronLeft: <path {...sw} d="M14.5 6l-6 6 6 6" />,
     chevronRight: <path {...sw} d="M9.5 6l6 6-6 6" />,
     chevronDown: <path {...sw} d="M6 9.5l6 6 6-6" />,
+    chevronUp: <path {...sw} d="M6 14.5l6-6 6 6" />,
+    warning: <path {...sw} d="M12 4L2.5 20h19zM12 10v5M12 17.5v.2" />,
     thermo: <path {...sw} d="M10 14.5V5a2 2 0 0 1 4 0v9.5a3.5 3.5 0 1 1-4 0z" />,
     drops: <Drops />,
     cloud: <path {...sw} d={cloudPath} transform="translate(0 -1)" />,

@@ -33,7 +33,7 @@ export interface Profile {
 export interface SnowLevelOptions {
   /** Wet-bulb temperature that marks the snow level, °C. NWS uses 0.5. */
   thresholdC: number;
-  /** Lapse rate used to extrapolate below the surface when the whole column is colder than the threshold, °C per m. */
+  /** Lapse rate used to extrapolate from the surface when the crossing can't be found in the column, °C per m. */
   belowGroundLapse: number;
   /**
    * Optional: lower the snow level in heavy precipitation (melting cooling). Forecasters often do this;
@@ -104,7 +104,12 @@ export function snowLevel(profile: Profile, options: SnowLevelOptions = DEFAULT_
     .filter((l) => l.t != null && l.rh != null && l.z != null && l.z > profile.elevation + 20)
     .sort((a, b) => a.z! - b.z!);
   for (const l of above) points.push({ z: l.z!, v: wetBulb(l.t!, l.rh!, l.p) });
-  if (points.length < 2) return null;
+  if (!points.length) return null;
+
+  // No upper-air data at this hour (some models drop it late in a run): go up from the surface at a typical lapse rate.
+  if (points.length === 1 && points[0].v >= options.thresholdC) {
+    return Math.max(0, Math.round(points[0].z + (points[0].v - options.thresholdC) / options.belowGroundLapse));
+  }
 
   let level = crossingHeight(points, options.thresholdC);
   if (level == null) return null;

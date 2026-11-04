@@ -3,8 +3,8 @@ import { Icon } from '../icons';
 import { fmtAgo, fmtElevation, type Units } from '../format';
 import type { BundleSource } from '../data';
 
-export function MoreInfo({ bundle, units, source }: { bundle: Bundle; units: Units; source: BundleSource }) {
-  const { lat, lon, elevation } = bundle.location;
+export function MoreInfo({ bundle, units, source, lat, lon }: { bundle: Bundle; units: Units; source: BundleSource; lat: number; lon: number }) {
+  const { elevation } = bundle.location;
   return (
     <section class="section">
       <h2>About This Forecast</h2>
@@ -41,6 +41,8 @@ export function MoreInfo({ bundle, units, source }: { bundle: Bundle; units: Uni
           <li><b>Model Spread</b> draws every model run as a thin line and the blend as a thick one. Tight lines mean the models agree; a wide spread means low confidence. Pick a model to highlight its latest run (thick cyan) and the two runs before it (thin cyan).</li>
           <li><b>Precip by Model Run</b> lists liquid precipitation per 12-hour period for each run. Color shows rain (teal), mix (amber), snow (blue) or heavy snow (violet). Storm Totals adds up consecutive wet periods.</li>
           <li><b>Forecast elevation</b> is shown at the top. Every model is adjusted to it, so temperature, snow level and precipitation type depend on it: about 3.5°F colder per 1,000 ft. It is the place's listed elevation for searched places and the terrain under the pin otherwise. In steep terrain, check it and change it if the pin sits on a slope or a wall. Pick points on the map to see the terrain elevation under the cursor.</li>
+          <li><b>Snow Summary</b> is snowfall at the forecast elevation: liquid precipitation falling above the snow level, times a snow ratio from the warmest air in the column (the Kuchera method). A day's number is the previous night plus that day, 6pm to 6pm, which is the snow you'd ski that day. The range shows the latest run of each model that covers the whole period. Snow ratios are rough, so treat totals as estimates.</li>
+          <li><b>Weather alerts</b> are active National Weather Service watches, warnings and advisories for this point, in the US only.</li>
           <li><b>Snow level</b> is the elevation where the wet-bulb temperature falls to 0.5°C, the method the National Weather Service uses. It is often 500 to 1,500 ft below the freezing level, more in dry air. NBM supplies its own snow level.</li>
           <li><b>Lightning</b> chance combines thunderstorm forecasts, instability (CAPE) and precipitation chance.</li>
           <li>Ensembles (EPS, AIGEFS) show the mean of all members for their latest run.</li>

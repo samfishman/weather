@@ -150,7 +150,7 @@ function HourlyChart({ bundle, units, day, tab }: { bundle: Bundle; units: Units
       }
       case 'pop': {
         const v = h.pop[i] ?? NaN;
-        const type = precipType(h.precip[i] ?? 0, h.snow[i] ?? 0);
+        const type = precipType(h.precip[i] ?? 0, h.snowLiquid[i] ?? 0);
         const color = v > 0 ? `var(--${type})` : 'var(--lightning-none)';
         return { i, v, label: [Number.isNaN(v) ? '' : String(Math.round(v))], color };
       }
@@ -209,12 +209,12 @@ function HourlyChart({ bundle, units, day, tab }: { bundle: Bundle; units: Units
   if (tab === 'pop') {
     for (const i of hours) {
       const p = h.precip[i] ?? 0;
-      const s = h.snow[i] ?? 0;
+      const s = h.snowLiquid[i] ?? 0;
       if (p <= 0 && s <= 0) continue;
       const type = precipType(p, s);
       if (type === 'rain') rainMm += p;
       else if (type === 'mix') mixMm += p;
-      else snowCm += s;
+      else snowCm += h.snow[i] ?? 0;
     }
   }
 

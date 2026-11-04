@@ -7,6 +7,8 @@ import { ForecastRange, type ModelChoice } from './components/ForecastRange';
 import { PrecipTable } from './components/PrecipTable';
 import { MoreInfo } from './components/MoreInfo';
 import { MapPicker } from './components/MapPicker';
+import { Alerts } from './components/Alerts';
+import { SnowSummary } from './components/SnowSummary';
 import { Elevation } from './components/Elevation';
 import { Icon } from './icons';
 import { loadBundle, type BundleSource } from './data';
@@ -169,7 +171,7 @@ export function App() {
     setDay(d);
     if (bundle) {
       // Move the Model Spread marker to the middle of that day's daytime period (or now, for today).
-      setMarker(d === 0 ? nowIndex(bundle) : dayStarts(bundle)[d] + 11);
+      setMarker(d === 0 ? nowIndex(bundle) : dayStarts(bundle)[d] + 12);
     }
   };
   const markerHour = bundle ? (marker ?? nowIndex(bundle)) : 0;
@@ -229,7 +231,9 @@ export function App() {
                 <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>Refresh</button>
               </div>
             )}
+            <Alerts lat={place?.lat ?? bundle.location.lat} lon={place?.lon ?? bundle.location.lon} tz={bundle.location.timezone} />
             <RightNow bundle={bundle} units={units} />
+            <SnowSummary bundle={bundle} units={units} />
             <Daily bundle={bundle} units={units} day={Math.min(day, bundle.daily.time.length - 1)} onDay={selectDay} tab={tab} onTab={setTab} />
             <ForecastRange
               bundle={bundle}
@@ -244,7 +248,7 @@ export function App() {
               onMarker={setMarker}
             />
             <PrecipTable bundle={bundle} units={units} model={model} onModel={setModel} days={tableDays} onDays={setTableDays} storm={storm} onStorm={setStorm} />
-            <MoreInfo bundle={bundle} units={units} source={data!.source} />
+            <MoreInfo bundle={bundle} units={units} source={data!.source} lat={place?.lat ?? bundle.location.lat} lon={place?.lon ?? bundle.location.lon} />
           </div>
         )}
       </main>

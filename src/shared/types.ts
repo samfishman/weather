@@ -36,8 +36,10 @@ export interface Bundle {
     pop: Series;
     precip: Series;
     rain: Series;
-    /** Snowfall, cm. */
+    /** Snowfall at the forecast elevation, cm. */
     snow: Series;
+    /** Liquid precip falling as snow, mm. */
+    snowLiquid: Series;
     code: Series;
     wind: Series;
     windDir: Series;
@@ -76,8 +78,10 @@ export type BlendMode = 'auto' | 'best_match' | 'median';
 export interface RunSeries {
   temp: Series;
   precip: Series;
-  /** Snowfall, cm. */
+  /** Snowfall at the forecast elevation, cm. */
   snow: Series;
+  /** Liquid precip falling as snow, mm. */
+  snowLiquid: Series;
   wind: Series;
   gust: Series;
   cloud: Series;

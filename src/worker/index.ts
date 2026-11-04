@@ -97,7 +97,7 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   const rlon = Math.round(lon * 100) / 100;
   // A chosen elevation changes the forecast, so it is part of the key (to the nearest 10 m).
   const elevKey = elevation == null ? 'terrain' : String(Math.round(elevation / 10) * 10);
-  const key = `b:v4:${rlat},${rlon}:${elevKey}:${blendMode}`;
+  const key = `b:v5:${rlat},${rlon}:${elevKey}:${blendMode}`;
 
   const headers = (cache: string, maxAge = BUNDLE_TTL) => ({
     'content-type': 'application/json; charset=utf-8',
