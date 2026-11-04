@@ -1,7 +1,8 @@
 // Cloudflare Worker: serves the dashboard (static assets) and /api/forecast, which builds the data bundle
 // from Open-Meteo and caches it. Responses from the Single Runs API never change for a given run, so they
 // are cached for a day. A bundle is fresh for 15 minutes; older copies are kept for a day and served when a
-// rebuild fails (Open-Meteo throttles bursts from the shared Workers IPs).
+// rebuild fails (Open-Meteo throttles bursts from the shared Workers IPs). `part=main` answers without waiting
+// for the model runs, unless a complete bundle is already cached. Only complete bundles are cached.
 
 import { UpstreamError, buildBundle, fetchJsonVia, type FetchJson } from '../shared/bundle';
 import type { BlendMode } from '../shared/types';
@@ -97,7 +98,7 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   const rlon = Math.round(lon * 100) / 100;
   // A chosen elevation changes the forecast, so it is part of the key (to the nearest 10 m).
   const elevKey = elevation == null ? 'terrain' : String(Math.round(elevation / 10) * 10);
-  const key = `b:v5:${rlat},${rlon}:${elevKey}:${blendMode}`;
+  const key = `b:v6:${rlat},${rlon}:${elevKey}:${blendMode}`;
 
   const headers = (cache: string, maxAge = BUNDLE_TTL) => ({
     'content-type': 'application/json; charset=utf-8',
@@ -118,8 +119,9 @@ async function handleForecast(request: Request, env: Env, ctx: ExecutionContext)
   }
 
   try {
-    const bundle = await buildBundle(rlat, rlon, { fetchJson: cachedFetchJson(env, ctx), blendMode, elevation });
+    const bundle = await buildBundle(rlat, rlon, { fetchJson: cachedFetchJson(env, ctx), blendMode, elevation, mainOnly: params.get('part') === 'main' });
     const body = JSON.stringify(bundle);
+    if (bundle.runsStatus !== 'complete') return new Response(body, { headers: { ...headers('miss'), 'cache-control': 'no-store' } });
     memSet(key, { body, t: now }, STALE_TTL);
     if (env.CACHE) ctx.waitUntil(env.CACHE.put(key, body, { expirationTtl: STALE_TTL, metadata: { t: now } }));
     return new Response(body, { headers: headers('miss') });

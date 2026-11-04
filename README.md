@@ -72,6 +72,7 @@ For example, on Nov 3 2026 at Alta (9,895 ft) this gave 4" for days 1–5, with 
 ```
 browser ── /api/forecast?lat&lon ──► Worker ──► Open-Meteo (best match, NBM, meta.json, single runs, ensembles)
    │                                   └── caches: bundle 15 min, single runs 24 h (KV + memory)
+   │                                   └── part=main answers first, without the runs (they can take 30 s+)
    └── if the Worker gets 429 from Open-Meteo, the browser builds the same bundle itself
 ```
 

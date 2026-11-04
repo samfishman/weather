@@ -25,7 +25,7 @@ export function MoreInfo({ bundle, units, source, lat, lon }: { bundle: Bundle; 
             <span>
               Updated <b>{fmtAgo(bundle.generatedAt)}</b> from
               <br />
-              {bundle.runs.length} model runs via Open-Meteo{source === 'browser' ? ' (fetched by this browser)' : ''}
+              {bundle.runsStatus === 'pending' ? 'the main forecast' : `${bundle.runs.length} model runs`} via Open-Meteo{source === 'browser' ? ' (fetched by this browser)' : ''}
             </span>
           </div>
           <div class="info-item">

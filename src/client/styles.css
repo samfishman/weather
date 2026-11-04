@@ -48,6 +48,7 @@ button { font: inherit; color: inherit; }
 .small { font-size: 12.5px; }
 .banner { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; color: var(--text-2); font-size: 13.5px; margin-bottom: 12px; }
 .loading { padding: 60px 0; text-align: center; color: var(--text-3); }
+.runs-loading { padding: 28px 0; }
 .stale { opacity: 0.55; transition: opacity 0.2s; }
 
 /* ---- Now ---- */

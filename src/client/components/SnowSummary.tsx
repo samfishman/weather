@@ -91,7 +91,7 @@ export function SnowSummary({ bundle, units }: { bundle: Bundle; units: Units })
                       <span class="sn-unit">{unit(units)}</span>
                     </div>
                     <div class="sn-range" title={r ? `Latest run of ${r.n} models` : undefined}>
-                      {r ? `Models ${amount(r.min, units)}–${amount(r.max, units)}${unit(units)}` : 'Too few models'}
+                      {r ? `Models ${amount(r.min, units)}–${amount(r.max, units)}${unit(units)}` : bundle.runsStatus === 'pending' ? 'Models loading…' : 'Too few models'}
                     </div>
                   </div>
                 );

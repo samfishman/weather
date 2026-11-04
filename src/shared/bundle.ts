@@ -42,6 +42,8 @@ export interface BuildOptions {
   blendMode?: BlendMode;
   /** Elevation hint (m) used to pick which pressure levels to request. */
   elevation?: number | null;
+  /** Build only the main forecast. The Single Runs API can take 30 seconds or more, so the page doesn't wait on it. */
+  mainOnly?: boolean;
 }
 
 interface Meta {
@@ -57,7 +59,9 @@ export const MAX_CONCURRENT = 4;
 export async function buildBundle(lat: number, lon: number, opts: BuildOptions): Promise<Bundle> {
   // Every request goes through one queue and retries transient rejections.
   const fetchJson = limitConcurrency(withRetry(opts.fetchJson), MAX_CONCURRENT);
+  const mainOnly = opts.mainOnly ?? false;
   const warnings: string[] = [];
+  let runsMissing = false;
   const elevationHint =
     opts.elevation ?? (await fetchJson(elevationUrl(lat, lon)).then((r) => r.elevation?.[0] ?? null, () => null));
   const levels = levelsFor(elevationHint);
@@ -71,12 +75,15 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
   const nbmPromise = useNbm ? fetchJson(nbmUrl(pt)).catch(() => null) : Promise.resolve(null);
   const ensembleModels = MODELS.filter((m) => m.kind === 'ensemble');
-  const ensemblePromise = fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
-    warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
-    return null;
-  });
+  const ensemblePromise = mainOnly
+    ? Promise.resolve(null)
+    : fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
+        warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
+        runsMissing = true;
+        return null;
+      });
   // Run times; a missing one drops that model.
-  const metaPromise = Promise.all(MODELS.map((m) => fetchJson(metaUrl(m.meta)).catch((): Meta | null => null)));
+  const metaPromise = mainOnly ? Promise.resolve([]) : Promise.all(MODELS.map((m) => fetchJson(metaUrl(m.meta)).catch((): Meta | null => null)));
   const best = await bestPromise;
   const metas = await metaPromise;
   const nbm = await nbmPromise;
@@ -137,10 +144,11 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const wanted = new Map<number, ModelDef[]>();
   const runInits = new Map<ModelKey, number[]>();
   MODELS.forEach((m, i) => {
-    if (m.kind !== 'deterministic' || !inDomain(m, lat, lon)) return;
+    if (mainOnly || m.kind !== 'deterministic' || !inDomain(m, lat, lon)) return;
     const meta = metas[i];
     if (!meta?.last_run_initialisation_time) {
       warnings.push(`No run times for ${m.short}`);
+      runsMissing = true;
       return;
     }
     const stepS = m.stepHours * HOUR;
@@ -157,7 +165,12 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const runs: Run[] = [];
   // Open-Meteo rejects too many heavy requests at once, so fetch three run times at a time.
   await mapLimit([...wanted.entries()], 3, async ([init, models]) => {
-    const results = await fetchRunGroup(fetchJson, pt, init, models, levels);
+    // A run that can't be fetched costs only that run; the main forecast is already in hand.
+    const results = await fetchRunGroup(fetchJson, pt, init, models, levels).catch((e): [ModelDef, OpenMeteoHourly][] => {
+      warnings.push(`Runs from ${new Date(init * 1000).toISOString()} unavailable: ${e.message ?? e}`);
+      runsMissing = true;
+      return [];
+    });
     for (const [model, h] of results) {
       const age = runInits.get(model.key)!.indexOf(init);
       runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
@@ -186,7 +199,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   withData.sort((a, b) => MODELS.findIndex((m) => m.key === a.model) - MODELS.findIndex((m) => m.key === b.model) || a.age - b.age);
 
   const blend: RunSeries =
-    blendMode === 'median'
+    blendMode === 'median' && !mainOnly
       ? medianBlend(withData.filter((r) => r.age === 0), length)
       : {
           temp: hourly.temp,
@@ -212,6 +225,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     blendMode,
     runs: withData,
     models,
+    runsStatus: mainOnly ? 'pending' : runsMissing ? 'partial' : 'complete',
     warnings,
   };
 }

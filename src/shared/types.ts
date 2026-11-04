@@ -69,6 +69,8 @@ export interface Bundle {
   runs: Run[];
   /** Models with data at this location, in display order. */
   models: ModelKey[];
+  /** pending: the main forecast only, runs not requested yet. partial: some runs couldn't be fetched. */
+  runsStatus: 'pending' | 'partial' | 'complete';
   warnings: string[];
 }
 
