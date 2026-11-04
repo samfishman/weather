@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { snowLevel, wetBulb } from '../src/shared/snowlevel';
-import { compass, lightningCategory, periodBounds, periodOf, precipType, sumRange } from '../src/shared/derive';
+import { compass, lightningCategory, maxRange, periodBounds, periodOf, precipType, sumRange } from '../src/shared/derive';
 import { moonIllumination, moonPhaseName, moonTimes } from '../src/shared/moon';
 import { bestMatchUrl, levelsFor, singleRunUrl } from '../src/shared/openmeteo';
 import { codeForFraction, columnMax, hourSnow, kucheraRatio, snowFraction } from '../src/shared/snow';
@@ -62,6 +62,8 @@ describe('derive', () => {
     const s = Array.from({ length: 48 }, () => 1);
     expect(sumRange(s, periods[0])).toBe(12);
     expect(sumRange(s, periods[3])).toBeNull();
+    expect(maxRange([10, null, 40, 20], [0, 4])).toBe(40);
+    expect(maxRange([10, null, 40, 20], [1, 2])).toBeNull();
   });
   it('rates lightning', () => {
     expect(lightningCategory(95, 0, 60)).toBe(3);

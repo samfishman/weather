@@ -451,6 +451,9 @@ a:hover { text-decoration-color: var(--link); }
 .day .hi { font-family: var(--mono); font-weight: 500; font-size: 15px; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .day .lo { font-family: var(--mono); font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .day .dicon { border-top: 1px dashed var(--border); margin: 7px 14px 0; padding-top: 7px; color: var(--text-2); }
+.dchance { margin: 6px 4px 0; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
+.pchance { display: flex; justify-content: space-between; gap: 2px; line-height: 1.5; }
+.pchance b { font-weight: 500; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .scrollbtn {
   width: 26px;
   height: 44px;

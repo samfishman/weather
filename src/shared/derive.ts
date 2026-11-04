@@ -84,6 +84,16 @@ export function sumRange(s: Series, [a, b]: Period): number | null {
   return sum;
 }
 
+/** Highest value of a series over [a, b), or null when every hour is missing. */
+export function maxRange(s: Series, [a, b]: Period): number | null {
+  let max: number | null = null;
+  for (let i = a; i < b; i++) {
+    const v = s[i];
+    if (v != null && (max == null || v > max)) max = v;
+  }
+  return max;
+}
+
 export const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 
 export function compass(deg: number | null): string {
