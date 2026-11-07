@@ -58,9 +58,14 @@ export function Daily({ bundle, units, day, onDay, tab, onTab }: Props) {
   };
   useEffect(updateArrows, [bundle]);
   useEffect(() => {
-    // Keep the selected day in view.
-    const el = strip.current?.children[day] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    // Keep the selected day in view, moving only the strip. scrollIntoView would also scroll the page to the strip.
+    const el = strip.current;
+    const card = el?.children[day];
+    if (!el || !card) return;
+    const box = el.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const by = c.left < box.left ? c.left - box.left : c.right > box.right ? c.right - box.right : 0;
+    if (by) el.scrollBy({ left: by, behavior: 'smooth' });
   }, [day]);
 
   const scroll = (dir: number) => strip.current?.scrollBy({ left: dir * strip.current.clientWidth * 0.8 });
