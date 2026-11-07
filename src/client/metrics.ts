@@ -111,7 +111,7 @@ export function rangeLines(b: Bundle, metric: RangeMetric, u: Units, periods: Pe
 /** Rain, mix or snow for a 12-hour period of a run. */
 export function periodType(s: RunSeries, period: Period): PrecipType | null {
   const p = sumRange(s.precip, period);
-  const sn = sumRange(s.snow, period);
+  const sn = sumRange(s.snowLiquid, period);
   if (p == null || sn == null || p <= 0) return null;
   return precipType(p, sn);
 }

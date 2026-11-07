@@ -3,6 +3,9 @@ import type * as Leaflet from 'leaflet';
 import { Icon, WeatherIcon, precipChanceColor } from '../icons';
 import { fmtPrecip, fmtSnow, fmtTemp, heightUnit, tempUnit, toHeight, type Units } from '../format';
 import { geolocate, placeTitle, reverseGeocode, searchPlaces, terrainElevation, type Place, type SearchResult } from '../location';
+import { levelVars, levelsFor } from '../../shared/openmeteo';
+import { snowLevel, type Profile } from '../../shared/snowlevel';
+import { codeForFraction, columnMax, hourSnow } from '../../shared/snow';
 import { AVALANCHE_SCALE, BASES, OVERLAYS, WEATHER_PANE, arcgisLegend, makeOverlay, radarFrames, type BaseKey, type LegendItem, type OverlayKey, type RadarFrame } from '../maplayers';
 
 interface Props {
@@ -47,29 +50,52 @@ function loadPrefs(): { base: BaseKey; overlays: OverlayKey[] } {
   }
 }
 
-/** A three-day outlook for a tapped point, at the elevation the forecast would use. */
+/** A three-day outlook for a tapped point, at the elevation the forecast would use, with the same snow math as the main page. */
 async function quickForecast(lat: number, lon: number, elevation: number | null, signal?: AbortSignal): Promise<QuickDay[] | null> {
   try {
+    const levels = levelsFor(elevation);
     const q = new URLSearchParams({
       latitude: lat.toFixed(4),
       longitude: lon.toFixed(4),
-      daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,precipitation_probability_max',
+      daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+      hourly: ['precipitation', 'temperature_2m', 'relative_humidity_2m', 'surface_pressure', ...levelVars(levels)].join(','),
       forecast_days: '3',
       timezone: 'auto',
     });
     if (elevation != null) q.set('elevation', String(Math.round(elevation)));
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`, { signal });
     const d: any = await res.json();
-    if (!d.daily) return null;
-    return d.daily.time.map((time: string, i: number) => ({
-      time,
-      code: d.daily.weather_code[i],
-      tmax: d.daily.temperature_2m_max[i],
-      tmin: d.daily.temperature_2m_min[i],
-      precip: d.daily.precipitation_sum[i],
-      snow: d.daily.snowfall_sum[i],
-      pop: d.daily.precipitation_probability_max[i],
-    }));
+    if (!d.daily || !d.hourly) return null;
+    const h = d.hourly;
+    const totals = new Map<string, { precip: number; liquid: number; depth: number }>();
+    (h.time as string[]).forEach((t, i) => {
+      const profile: Profile = {
+        elevation: d.elevation,
+        t2m: h.temperature_2m[i],
+        rh2m: h.relative_humidity_2m[i],
+        psfc: h.surface_pressure[i],
+        levels: levels.map((p) => ({ p, t: h[`temperature_${p}hPa`][i], rh: h[`relative_humidity_${p}hPa`][i], z: h[`geopotential_height_${p}hPa`][i] })),
+      };
+      const s = hourSnow(h.precipitation[i], d.elevation, snowLevel(profile), columnMax(profile));
+      const day = t.slice(0, 10);
+      const total = totals.get(day) ?? { precip: 0, liquid: 0, depth: 0 };
+      total.precip += h.precipitation[i] ?? 0;
+      total.liquid += s.liquid;
+      total.depth += s.depth;
+      totals.set(day, total);
+    });
+    return d.daily.time.map((time: string, i: number) => {
+      const t = totals.get(time) ?? { precip: 0, liquid: 0, depth: 0 };
+      return {
+        time,
+        code: codeForFraction(d.daily.weather_code[i], t.precip > 0 ? t.liquid / t.precip : 0),
+        tmax: d.daily.temperature_2m_max[i],
+        tmin: d.daily.temperature_2m_min[i],
+        precip: t.precip,
+        snow: t.depth,
+        pop: d.daily.precipitation_probability_max[i],
+      };
+    });
   } catch {
     return null;
   }

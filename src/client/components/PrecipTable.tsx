@@ -143,7 +143,7 @@ export function PrecipTable({ bundle, units, model, onModel, days, onDays, storm
           <div class="ramp" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--heavy-snow) 45%, transparent), var(--heavy-snow))' }}>HEAVY SNOW</div>
         </div>
         <p class="note center" style={{ margin: '6px auto 14px' }}>
-          Liquid precipitation per 12 hours ({units === 'imperial' ? 'inches' : 'mm'}), 5am to 5pm and 5pm to 5am local.
+          Liquid precipitation per 12 hours ({units === 'imperial' ? 'inches' : 'mm'}), 6am to 6pm and 6pm to 6am local.
           {storm ? ' Storm totals add up each run of wet periods.' : ''} N/A marks where a run ends.
         </p>
       </div>

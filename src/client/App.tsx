@@ -7,6 +7,8 @@ import { ForecastRange, type ModelChoice } from './components/ForecastRange';
 import { PrecipTable } from './components/PrecipTable';
 import { MoreInfo } from './components/MoreInfo';
 import { MapPicker } from './components/MapPicker';
+import { Alerts } from './components/Alerts';
+import { SnowSummary } from './components/SnowSummary';
 import { Elevation } from './components/Elevation';
 import { Icon } from './icons';
 import { loadBundle, type BundleSource } from './data';
@@ -120,16 +122,18 @@ export function App() {
   const loadKey = key && `${key}#${attempt}`;
   useEffect(() => {
     if (!place || !key) return;
-    let cancelled = false;
+    const ctrl = new AbortController();
+    const cancelled = () => ctrl.signal.aborted;
     setLoading(true);
     setError(null);
-    loadBundle(place.lat, place.lon, forecastElevation ?? null, blendMode)
-      .then((r) => !cancelled && setData({ ...r, key }))
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
+    loadBundle(place.lat, place.lon, forecastElevation ?? null, blendMode, ctrl.signal, (r) => {
+      if (cancelled()) return;
+      // Retrying a place keeps the runs on screen until the new ones arrive.
+      setData((d) => (r.bundle.runsStatus === 'pending' && d?.key === key && d.bundle.runsStatus !== 'pending' ? d : { ...r, key }));
+    })
+      .catch((e) => !cancelled() && setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => !cancelled() && setLoading(false));
+    return () => ctrl.abort();
   }, [loadKey]);
 
   const changeElevation = (m: number | null) => {
@@ -169,7 +173,7 @@ export function App() {
     setDay(d);
     if (bundle) {
       // Move the Model Spread marker to the middle of that day's daytime period (or now, for today).
-      setMarker(d === 0 ? nowIndex(bundle) : dayStarts(bundle)[d] + 11);
+      setMarker(d === 0 ? nowIndex(bundle) : dayStarts(bundle)[d] + 12);
     }
   };
   const markerHour = bundle ? (marker ?? nowIndex(bundle)) : 0;
@@ -206,6 +210,7 @@ export function App() {
           </div>
         )}
         {notice && <div class="banner">{notice}</div>}
+        {place && <Alerts lat={place.lat} lon={place.lon} tz={stale || !bundle ? Intl.DateTimeFormat().resolvedOptions().timeZone : bundle.location.timezone} />}
         {error && !bundle && (
           <div class="banner banner-action">
             <span>Couldn't load the forecast: {friendlyError(error)}</span>
@@ -217,7 +222,7 @@ export function App() {
         {!bundle && !error && <div class="loading">Loading forecast…</div>}
         {bundle && (
           <div class={stale ? 'stale' : ''}>
-            {error && (
+            {error && bundle.runsStatus !== 'pending' && (
               <div class="banner banner-action">
                 <span>Couldn't refresh the forecast: {friendlyError(error)}</span>
                 <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>Retry</button>
@@ -230,21 +235,39 @@ export function App() {
               </div>
             )}
             <RightNow bundle={bundle} units={units} />
+            <SnowSummary bundle={bundle} units={units} />
             <Daily bundle={bundle} units={units} day={Math.min(day, bundle.daily.time.length - 1)} onDay={selectDay} tab={tab} onTab={setTab} />
-            <ForecastRange
-              bundle={bundle}
-              units={units}
-              model={model}
-              onModel={setModel}
-              days={rangeDays}
-              onDays={setRangeDays}
-              metric={metric}
-              onMetric={setMetric}
-              marker={markerHour}
-              onMarker={setMarker}
-            />
-            <PrecipTable bundle={bundle} units={units} model={model} onModel={setModel} days={tableDays} onDays={setTableDays} storm={storm} onStorm={setStorm} />
-            <MoreInfo bundle={bundle} units={units} source={data!.source} />
+            {bundle.runsStatus === 'pending' && !error && <div class="loading runs-loading">Loading model runs…</div>}
+            {bundle.runsStatus === 'pending' && error && (
+              <div class="banner banner-action">
+                <span>Couldn't load the model runs: {friendlyError(error)}</span>
+                <button class="pill" onClick={() => setAttempt((n) => n + 1)} disabled={loading}>Retry</button>
+              </div>
+            )}
+            {bundle.runsStatus === 'partial' && !loading && (
+              <div class="banner banner-action">
+                <span>Some model runs didn't load; the weather service is busy.</span>
+                <button class="pill" onClick={() => setAttempt((n) => n + 1)}>Retry</button>
+              </div>
+            )}
+            {bundle.runsStatus !== 'pending' && (
+              <>
+                <ForecastRange
+                  bundle={bundle}
+                  units={units}
+                  model={model}
+                  onModel={setModel}
+                  days={rangeDays}
+                  onDays={setRangeDays}
+                  metric={metric}
+                  onMetric={setMetric}
+                  marker={markerHour}
+                  onMarker={setMarker}
+                />
+                <PrecipTable bundle={bundle} units={units} model={model} onModel={setModel} days={tableDays} onDays={setTableDays} storm={storm} onStorm={setStorm} />
+              </>
+            )}
+            <MoreInfo bundle={bundle} units={units} source={data!.source} lat={place?.lat ?? bundle.location.lat} lon={place?.lon ?? bundle.location.lon} />
           </div>
         )}
       </main>

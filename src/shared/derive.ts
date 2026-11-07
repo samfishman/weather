@@ -9,10 +9,10 @@ export function snowWater(snowCm: number): number {
   return (snowCm * 10) / 7;
 }
 
-/** Rain, mix or snow from total liquid precip (mm) and snowfall (cm). */
-export function precipType(precipMm: number, snowCm: number): PrecipType {
-  if (precipMm <= 0) return snowCm > 0 ? 'snow' : 'rain';
-  const frac = Math.min(1, snowWater(snowCm) / precipMm);
+/** Rain, mix or snow from total liquid precip and the part of it falling as snow (both mm). */
+export function precipType(precipMm: number, snowLiquidMm: number): PrecipType {
+  if (precipMm <= 0) return snowLiquidMm > 0 ? 'snow' : 'rain';
+  const frac = Math.min(1, snowLiquidMm / precipMm);
   if (frac >= 0.8) return 'snow';
   if (frac <= 0.2) return 'rain';
   return 'mix';
@@ -49,14 +49,14 @@ export function roundSeries(s: Series, digits = 1): Series {
   return s.map((v) => round(v, digits));
 }
 
-// Day and night periods run 5am to 5pm and 5pm to 5am local, as on OpenSnow.
-export const PERIOD_START_HOUR = 5;
+// Day and night periods run 6am to 6pm and 6pm to 6am local, as on OpenSnow.
+export const PERIOD_START_HOUR = 6;
 
 /** A 12-hour period as grid hour indices [start, end). Even periods are days, odd are nights. */
 export type Period = [number, number];
 
 /**
- * Periods from the grid indices of each local midnight. Using real midnights keeps 5am and 5pm
+ * Periods from the grid indices of each local midnight. Using real midnights keeps 6am and 6pm
  * right across daylight-saving changes (23- and 25-hour days).
  */
 export function periodBounds(dayStarts: number[]): Period[] {
@@ -82,6 +82,16 @@ export function sumRange(s: Series, [a, b]: Period): number | null {
     sum += v;
   }
   return sum;
+}
+
+/** Highest value of a series over [a, b), or null when every hour is missing. */
+export function maxRange(s: Series, [a, b]: Period): number | null {
+  let max: number | null = null;
+  for (let i = a; i < b; i++) {
+    const v = s[i];
+    if (v != null && (max == null || v > max)) max = v;
+  }
+  return max;
 }
 
 export const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];

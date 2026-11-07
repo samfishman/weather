@@ -4,6 +4,13 @@ import { buildBundle, fetchJsonVia, isTransient, type FetchJson } from '../share
 import type { BlendMode, Bundle } from '../shared/types';
 
 export type BundleSource = 'worker' | 'browser';
+export interface Loaded {
+  bundle: Bundle;
+  source: BundleSource;
+}
+
+/** Wait before asking again for runs that failed. Those that worked are cached by then, so the second try is cheaper. */
+const RUNS_RETRY_MS = 20_000;
 
 // Single-run responses never change, so the browser keeps them for the session.
 const runCache = new Map<string, unknown>();
@@ -18,28 +25,51 @@ const browserFetch: FetchJson = async (url) => {
   return value;
 };
 
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Loads the forecast in steps, calling `onData` after each: the main forecast first, then the model runs,
+ * which can take 30 seconds or more, then one more try if some of those runs failed.
+ */
 export async function loadBundle(
   lat: number,
   lon: number,
   elevation: number | null,
   blendMode: BlendMode,
-): Promise<{ bundle: Bundle; source: BundleSource }> {
-  const q = new URLSearchParams({ lat: lat.toFixed(4), lon: lon.toFixed(4) });
-  if (elevation != null) q.set('elev', String(Math.round(elevation)));
-  if (blendMode !== 'auto') q.set('blend', blendMode);
-  try {
-    const res = await fetch(`/api/forecast?${q}`);
-    if (res.ok) return { bundle: await res.json(), source: 'worker' };
-  } catch {
-    // Fall through to the browser pipeline.
-  }
-  // The Worker couldn't build it (Open-Meteo busy for its shared IP): build it here, with one more try after a pause.
-  const build = () => buildBundle(lat, lon, { fetchJson: browserFetch, blendMode, elevation });
-  try {
-    return { bundle: await build(), source: 'browser' };
-  } catch (e) {
-    if (!isTransient(e)) throw e;
-    await new Promise((r) => setTimeout(r, 2500));
-    return { bundle: await build(), source: 'browser' };
-  }
+  signal: AbortSignal,
+  onData: (loaded: Loaded) => void,
+): Promise<void> {
+  const load = async (mainOnly: boolean): Promise<Loaded> => {
+    const q = new URLSearchParams({ lat: lat.toFixed(4), lon: lon.toFixed(4) });
+    if (elevation != null) q.set('elev', String(Math.round(elevation)));
+    if (blendMode !== 'auto') q.set('blend', blendMode);
+    if (mainOnly) q.set('part', 'main');
+    try {
+      const res = await fetch(`/api/forecast?${q}`, { signal });
+      if (res.ok) return { bundle: await res.json(), source: 'worker' };
+    } catch {
+      // Fall through to the browser pipeline.
+    }
+    signal.throwIfAborted();
+    // The Worker couldn't build it (Open-Meteo busy for its shared IP): build it here, with one more try after a pause.
+    const build = () => buildBundle(lat, lon, { fetchJson: browserFetch, blendMode, elevation, mainOnly });
+    try {
+      return { bundle: await build(), source: 'browser' };
+    } catch (e) {
+      if (!isTransient(e)) throw e;
+      await pause(2500);
+      signal.throwIfAborted();
+      return { bundle: await build(), source: 'browser' };
+    }
+  };
+
+  const main = await load(true);
+  onData(main);
+  if (main.bundle.runsStatus !== 'pending') return;
+  const full = await load(false);
+  onData(full);
+  if (full.bundle.runsStatus !== 'partial') return;
+  await pause(RUNS_RETRY_MS);
+  signal.throwIfAborted();
+  await load(false).then(onData, () => {});
 }

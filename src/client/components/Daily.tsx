@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Bundle } from '../../shared/types';
-import { compass, precipType } from '../../shared/derive';
+import { compass, maxRange, precipType, type Period } from '../../shared/derive';
 import { moonIllumination, moonPhaseName, moonTimes } from '../../shared/moon';
 import { Icon, WeatherIcon, precipChanceColor } from '../icons';
 import {
@@ -16,7 +16,7 @@ import {
   windUnit,
   type Units,
 } from '../format';
-import { dayRange, nowIndex } from '../metrics';
+import { bundlePeriods, dayRange, nowIndex } from '../metrics';
 
 export type HourlyTab = 'temp' | 'feels' | 'pop' | 'wind' | 'cloud' | 'rh' | 'lightning';
 
@@ -45,6 +45,10 @@ export function Daily({ bundle, units, day, onDay, tab, onTab }: Props) {
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(true);
   const days = bundle.daily.time.slice(0, 15);
+  const periods = bundlePeriods(bundle);
+  const now = nowIndex(bundle);
+  // A 12-hour chance is its highest hourly chance over the hours still ahead. Of the simple ways to combine them, this came closest to NWS's 12-hour chances.
+  const chance = (p: Period | undefined) => (p && p[1] > now ? maxRange(bundle.hourly.pop, [Math.max(p[0], now), p[1]]) : null);
 
   const updateArrows = () => {
     const el = strip.current;
@@ -78,6 +82,10 @@ export function Daily({ bundle, units, day, onDay, tab, onTab }: Props) {
                 <div class="dicon">
                   <WeatherIcon code={bundle.daily.code[i]} precipColor={precipChanceColor(bundle.daily.popMax[i])} size={28} />
                 </div>
+                <div class="dchance" title="Chance of precipitation, 6am to 6pm and 6pm to 6am">
+                  <PeriodChance label="Day" pop={chance(periods[2 * i])} />
+                  <PeriodChance label="Night" pop={chance(periods[2 * i + 1])} />
+                </div>
               </button>
             ))}
           </div>
@@ -104,6 +112,15 @@ export function Daily({ bundle, units, day, onDay, tab, onTab }: Props) {
         <SunMoon bundle={bundle} day={day} />
       </div>
     </section>
+  );
+}
+
+function PeriodChance({ label, pop }: { label: string; pop: number | null }) {
+  return (
+    <div class="pchance">
+      <span>{label}</span>
+      <b style={{ color: precipChanceColor(pop) }}>{pop == null ? '–' : `${Math.round(pop)}%`}</b>
+    </div>
   );
 }
 
@@ -150,7 +167,7 @@ function HourlyChart({ bundle, units, day, tab }: { bundle: Bundle; units: Units
       }
       case 'pop': {
         const v = h.pop[i] ?? NaN;
-        const type = precipType(h.precip[i] ?? 0, h.snow[i] ?? 0);
+        const type = precipType(h.precip[i] ?? 0, h.snowLiquid[i] ?? 0);
         const color = v > 0 ? `var(--${type})` : 'var(--lightning-none)';
         return { i, v, label: [Number.isNaN(v) ? '' : String(Math.round(v))], color };
       }
@@ -209,12 +226,12 @@ function HourlyChart({ bundle, units, day, tab }: { bundle: Bundle; units: Units
   if (tab === 'pop') {
     for (const i of hours) {
       const p = h.precip[i] ?? 0;
-      const s = h.snow[i] ?? 0;
+      const s = h.snowLiquid[i] ?? 0;
       if (p <= 0 && s <= 0) continue;
       const type = precipType(p, s);
       if (type === 'rain') rainMm += p;
       else if (type === 'mix') mixMm += p;
-      else snowCm += s;
+      else snowCm += h.snow[i] ?? 0;
     }
   }
 

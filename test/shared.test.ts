@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { snowLevel, wetBulb } from '../src/shared/snowlevel';
-import { compass, lightningCategory, periodBounds, periodOf, precipType, sumRange } from '../src/shared/derive';
+import { compass, lightningCategory, maxRange, periodBounds, periodOf, precipType, sumRange } from '../src/shared/derive';
 import { moonIllumination, moonPhaseName, moonTimes } from '../src/shared/moon';
 import { bestMatchUrl, levelsFor, singleRunUrl } from '../src/shared/openmeteo';
+import { codeForFraction, columnMax, hourSnow, kucheraRatio, snowFraction } from '../src/shared/snow';
 
 describe('wetBulb', () => {
   it('matches psychrometric tables', () => {
@@ -37,24 +38,32 @@ describe('snowLevel', () => {
   it('skips levels below ground and returns null without data', () => {
     expect(snowLevel({ elevation: 2500, t2m: null, rh2m: null, psfc: null, levels: [level(850, 10, 50, 1500)] })).toBeNull();
   });
+  it('estimates from the surface alone when a run has no upper-air data', () => {
+    // Saturated 3.5 °C at 1300 m: 3 °C above the threshold at 6 °C/km is 500 m higher.
+    expect(snowLevel({ elevation: 1300, t2m: 3.5, rh2m: 100, psfc: 870, levels: [] })).toBeCloseTo(1800, -1);
+    // Below the threshold at the surface: the level is under the point.
+    expect(snowLevel({ elevation: 1300, t2m: -1, rh2m: 100, psfc: 870, levels: [] })).toBeLessThan(1300);
+  });
 });
 
 describe('derive', () => {
   it('classifies precip type', () => {
     expect(precipType(5, 0)).toBe('rain');
-    expect(precipType(1, 0.7)).toBe('snow');
-    expect(precipType(2, 0.7)).toBe('mix');
+    expect(precipType(1, 1)).toBe('snow');
+    expect(precipType(2, 1)).toBe('mix');
   });
-  it('maps hours to 5am/5pm periods, including a 25-hour DST day', () => {
+  it('maps hours to 6am/6pm periods, including a 25-hour DST day', () => {
     const periods = periodBounds([0, 25, 49]);
-    expect(periods.slice(0, 3)).toEqual([[5, 17], [17, 30], [30, 42]]);
-    expect(periodOf(periods, 4)).toBe(-1);
-    expect(periodOf(periods, 5)).toBe(0);
-    expect(periodOf(periods, 29)).toBe(1);
-    expect(periodOf(periods, 30)).toBe(2);
+    expect(periods.slice(0, 3)).toEqual([[6, 18], [18, 31], [31, 43]]);
+    expect(periodOf(periods, 5)).toBe(-1);
+    expect(periodOf(periods, 6)).toBe(0);
+    expect(periodOf(periods, 30)).toBe(1);
+    expect(periodOf(periods, 31)).toBe(2);
     const s = Array.from({ length: 48 }, () => 1);
     expect(sumRange(s, periods[0])).toBe(12);
     expect(sumRange(s, periods[3])).toBeNull();
+    expect(maxRange([10, null, 40, 20], [0, 4])).toBe(40);
+    expect(maxRange([10, null, 40, 20], [1, 2])).toBeNull();
   });
   it('rates lightning', () => {
     expect(lightningCategory(95, 0, 60)).toBe(3);
@@ -91,5 +100,45 @@ describe('moon', () => {
     const pdt = (ms: number) => (ms - sfMidnight) / 3_600_000;
     expect(pdt(rise!)).toBeCloseTo(18 + 19 / 60, 0);
     expect(pdt(set!)).toBeCloseTo(8 + 9 / 60, 0);
+  });
+});
+
+describe('snow', () => {
+  it('splits rain and snow around the snow level', () => {
+    expect(snowFraction(2000, 1500)).toBe(1);
+    expect(snowFraction(1000, 1500)).toBe(0);
+    expect(snowFraction(1500, 1500)).toBe(0.5);
+    expect(snowFraction(1500, null)).toBe(0);
+    // Cold to sea level: the level is clamped at 0, and it's all snow even right at the coast.
+    expect(snowFraction(10, 0)).toBe(1);
+  });
+  it('follows the Kuchera ratio', () => {
+    expect(kucheraRatio(-1.99)).toBeCloseTo(12, 1);
+    expect(kucheraRatio(-12)).toBeCloseTo(22, 0);
+    expect(kucheraRatio(0)).toBeCloseTo(8, 0);
+    // Limits: warm air can't go below 3:1, very cold air can't exceed 30:1.
+    expect(kucheraRatio(10)).toBe(3);
+    expect(kucheraRatio(-40)).toBe(30);
+  });
+  it('turns liquid into depth at this elevation', () => {
+    const cold = hourSnow(10, 3000, 1500, -12);
+    expect(cold.liquid).toBe(10);
+    expect(cold.depth).toBeCloseTo(22, 0); // 10 mm at 22:1 is 22 cm.
+    expect(hourSnow(10, 1000, 1500, 3).depth).toBe(0); // Below the snow level it's rain.
+    expect(hourSnow(10, 3000, 1500, null).depth).toBe(10); // No column data: 10:1.
+    expect(hourSnow(null, 3000, 1500, -5).depth).toBe(0);
+  });
+  it('uses only the column above the ground for the warmest temperature', () => {
+    const level = (p: number, t: number, z: number) => ({ p, t, rh: 90, z });
+    const profile = { elevation: 2500, t2m: -6, rh2m: 90, psfc: 750, levels: [level(850, 12, 1500), level(700, -4, 3000), level(600, -12, 4200)] };
+    expect(columnMax(profile)).toBe(-4);
+  });
+  it('makes weather codes agree with the precip type', () => {
+    expect(codeForFraction(61, 1)).toBe(71);
+    expect(codeForFraction(65, 1)).toBe(75);
+    expect(codeForFraction(73, 0)).toBe(63);
+    expect(codeForFraction(3, 1)).toBe(3);
+    expect(codeForFraction(95, 1)).toBe(95);
+    expect(codeForFraction(null, 1)).toBeNull();
   });
 });

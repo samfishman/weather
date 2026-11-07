@@ -14,7 +14,8 @@ import {
   type Point,
 } from './openmeteo';
 import { snowLevel, type ProfileLevel } from './snowlevel';
-import { lightningCategory, median, round, roundSeries } from './derive';
+import { lightningCategory, median, round, roundSeries, snowWater } from './derive';
+import { codeForFraction, columnMax, hourSnow } from './snow';
 import { blendSeries, mergeHourly } from './primary';
 import type { BlendMode, Bundle, Run, RunSeries, Series } from './types';
 
@@ -41,6 +42,8 @@ export interface BuildOptions {
   blendMode?: BlendMode;
   /** Elevation hint (m) used to pick which pressure levels to request. */
   elevation?: number | null;
+  /** Build only the main forecast. The Single Runs API can take 30 seconds or more, so the page doesn't wait on it. */
+  mainOnly?: boolean;
 }
 
 interface Meta {
@@ -56,7 +59,9 @@ export const MAX_CONCURRENT = 4;
 export async function buildBundle(lat: number, lon: number, opts: BuildOptions): Promise<Bundle> {
   // Every request goes through one queue and retries transient rejections.
   const fetchJson = limitConcurrency(withRetry(opts.fetchJson), MAX_CONCURRENT);
+  const mainOnly = opts.mainOnly ?? false;
   const warnings: string[] = [];
+  let runsMissing = false;
   const elevationHint =
     opts.elevation ?? (await fetchJson(elevationUrl(lat, lon)).then((r) => r.elevation?.[0] ?? null, () => null));
   const levels = levelsFor(elevationHint);
@@ -70,12 +75,15 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const useNbm = blendMode !== 'best_match' && inDomain(MODEL_BY_KEY.nbm, lat, lon);
   const nbmPromise = useNbm ? fetchJson(nbmUrl(pt)).catch(() => null) : Promise.resolve(null);
   const ensembleModels = MODELS.filter((m) => m.kind === 'ensemble');
-  const ensemblePromise = fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
-    warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
-    return null;
-  });
+  const ensemblePromise = mainOnly
+    ? Promise.resolve(null)
+    : fetchJson(ensembleUrl(pt, ensembleModels.map((m) => m.api))).catch((e) => {
+        warnings.push(`Ensembles unavailable: ${e.message ?? e}`);
+        runsMissing = true;
+        return null;
+      });
   // Run times; a missing one drops that model.
-  const metaPromise = Promise.all(MODELS.map((m) => fetchJson(metaUrl(m.meta)).catch((): Meta | null => null)));
+  const metaPromise = mainOnly ? Promise.resolve([]) : Promise.all(MODELS.map((m) => fetchJson(metaUrl(m.meta)).catch((): Meta | null => null)));
   const best = await bestPromise;
   const metas = await metaPromise;
   const nbm = await nbmPromise;
@@ -91,14 +99,23 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const merged = mergeHourly(best.hourly, nbm?.hourly ?? null);
   const bh = merged.hourly;
   const precip = bh.precipitation;
+  const levelSeries = blendSeries(
+    bh.time.map((_, i) => snowLevel(profileAt(bh, i, elevation, levels, null))),
+    alignTo(bh.time, nbm?.hourly, 'snowfall_height'),
+    merged,
+  ).map((v) => (v == null ? null : Math.round(v)));
+  // Rain and snow at this elevation (see snow.ts), and weather codes that agree with them.
+  const snowHours = bh.time.map((_, i) => hourSnow(precip[i], elevation, levelSeries[i], columnMax(profileAt(bh, i, elevation, levels, null))));
+  const codes = bh.weather_code.map((c, i) => codeForFraction(c, snowHours[i].fraction));
   const hourly: Bundle['hourly'] = {
     temp: roundSeries(bh.temperature_2m),
     feels: roundSeries(bh.apparent_temperature),
     pop: bh.precipitation_probability,
     precip: roundSeries(precip, 2),
-    rain: roundSeries(bh.rain.map((r, i) => (r == null ? null : r + (bh.showers?.[i] ?? 0))), 2),
-    snow: roundSeries(bh.snowfall, 2),
-    code: bh.weather_code,
+    rain: roundSeries(precip.map((p, i) => (p == null ? null : p - snowHours[i].liquid)), 2),
+    snow: roundSeries(snowHours.map((s) => s.depth), 2),
+    snowLiquid: roundSeries(snowHours.map((s) => s.liquid), 2),
+    code: codes,
     wind: roundSeries(bh.wind_speed_10m),
     windDir: bh.wind_direction_10m,
     gust: roundSeries(bh.wind_gusts_10m),
@@ -106,21 +123,17 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     rh: bh.relative_humidity_2m,
     isDay: bh.is_day,
     lightning: bh.time.map((_, i) => lightningCategory(bh.weather_code[i], bh.cape?.[i] ?? null, bh.precipitation_probability[i])),
-    snowLevel: blendSeries(
-      bh.time.map((_, i) => snowLevel(profileAt(bh, i, elevation, levels, null))),
-      alignTo(bh.time, nbm?.hourly, 'snowfall_height'),
-      merged,
-    ).map((v) => (v == null ? null : Math.round(v))),
+    snowLevel: levelSeries,
   };
 
-  const daily = dailyFromHourly(bh, best.daily, tz);
+  const daily = dailyFromHourly({ ...bh, weather_code: codes }, best.daily, tz);
 
   const c = nbm?.current?.temperature_2m != null ? nbm.current : best.current;
   const current: Bundle['current'] = {
     time: c.time,
     temp: round(c.temperature_2m),
     feels: round(c.apparent_temperature),
-    code: c.weather_code,
+    code: codeForFraction(c.weather_code, snowHours[Math.round((c.time - start) / HOUR)]?.fraction ?? 0),
     wind: round(c.wind_speed_10m),
     windDir: c.wind_direction_10m,
     gust: round(c.wind_gusts_10m),
@@ -131,10 +144,11 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const wanted = new Map<number, ModelDef[]>();
   const runInits = new Map<ModelKey, number[]>();
   MODELS.forEach((m, i) => {
-    if (m.kind !== 'deterministic' || !inDomain(m, lat, lon)) return;
+    if (mainOnly || m.kind !== 'deterministic' || !inDomain(m, lat, lon)) return;
     const meta = metas[i];
     if (!meta?.last_run_initialisation_time) {
       warnings.push(`No run times for ${m.short}`);
+      runsMissing = true;
       return;
     }
     const stepS = m.stepHours * HOUR;
@@ -151,7 +165,12 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   const runs: Run[] = [];
   // Open-Meteo rejects too many heavy requests at once, so fetch three run times at a time.
   await mapLimit([...wanted.entries()], 3, async ([init, models]) => {
-    const results = await fetchRunGroup(fetchJson, pt, init, models, levels);
+    // A run that can't be fetched costs only that run; the main forecast is already in hand.
+    const results = await fetchRunGroup(fetchJson, pt, init, models, levels).catch((e): [ModelDef, OpenMeteoHourly][] => {
+      warnings.push(`Runs from ${new Date(init * 1000).toISOString()} unavailable: ${e.message ?? e}`);
+      runsMissing = true;
+      return [];
+    });
     for (const [model, h] of results) {
       const age = runInits.get(model.key)!.indexOf(init);
       runs.push(runFromHourly(model, init, age, h, models.length > 1 ? model.api : null, start, length, elevation, levels));
@@ -180,12 +199,13 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
   withData.sort((a, b) => MODELS.findIndex((m) => m.key === a.model) - MODELS.findIndex((m) => m.key === b.model) || a.age - b.age);
 
   const blend: RunSeries =
-    blendMode === 'median'
+    blendMode === 'median' && !mainOnly
       ? medianBlend(withData.filter((r) => r.age === 0), length)
       : {
           temp: hourly.temp,
           precip: hourly.precip,
           snow: hourly.snow,
+          snowLiquid: hourly.snowLiquid,
           wind: hourly.wind,
           gust: hourly.gust,
           cloud: hourly.cloud,
@@ -205,6 +225,7 @@ export async function buildBundle(lat: number, lon: number, opts: BuildOptions):
     blendMode,
     runs: withData,
     models,
+    runsStatus: mainOnly ? 'pending' : runsMissing ? 'partial' : 'complete',
     warnings,
   };
 }
@@ -378,19 +399,24 @@ function runFromHourly(
     const i = Math.round((t - start) / HOUR);
     if (i < 0 || i >= length || temp?.[j] == null) return;
     out.temp[i] = round(temp[j]);
-    out.precip[i] = round(series('precipitation')?.[j], 2);
-    out.snow[i] = round(series('snowfall')?.[j], 2);
+    const p = series('precipitation')?.[j] ?? null;
+    const profile = profileAt(h, j, elevation, levels, api);
+    const level = native ? (native[j] ?? null) : snowLevel(profile);
+    const s = hourSnow(p, elevation, level, columnMax(profile));
+    out.precip[i] = round(p, 2);
+    out.snow[i] = p == null ? null : round(s.depth, 2);
+    out.snowLiquid[i] = p == null ? null : round(s.liquid, 2);
     out.wind[i] = round(series('wind_speed_10m')?.[j]);
     out.gust[i] = round(series('wind_gusts_10m')?.[j]);
     out.cloud[i] = series('cloud_cover')?.[j] ?? null;
-    out.snowLevel[i] = native ? (native[j] ?? null) : snowLevel(profileAt(h, j, elevation, levels, api));
+    out.snowLevel[i] = level;
   });
   return { model: model.key, init, age, ...out };
 }
 
 function emptyRun(length: number): RunSeries {
   const s = (): Series => new Array(length).fill(null);
-  return { temp: s(), precip: s(), snow: s(), wind: s(), gust: s(), cloud: s(), snowLevel: s() };
+  return { temp: s(), precip: s(), snow: s(), snowLiquid: s(), wind: s(), gust: s(), cloud: s(), snowLevel: s() };
 }
 
 /** Mean of the control and all members of one ensemble model. */
@@ -419,6 +445,8 @@ function ensembleRun(model: ModelDef, h: OpenMeteoHourly, start: number, length:
       out[fieldFor[v]][i] = vals.length ? round(vals.reduce((a, b) => a + b, 0) / vals.length, 2) : null;
     });
   }
+  // Ensemble members have no pressure levels here, so these keep Open-Meteo's snowfall (7 cm per 10 mm).
+  out.snowLiquid = out.snow.map((sn, i) => (sn == null ? null : round(Math.min(out.precip[i] ?? 0, snowWater(sn)), 2)));
   return found ? { model: model.key, ...out } : null;
 }
 
@@ -427,7 +455,7 @@ function medianBlend(latest: Run[], length: number): RunSeries {
   for (const key of Object.keys(out) as (keyof RunSeries)[]) {
     for (let i = 0; i < length; i++) {
       const vals = latest.map((r) => r[key][i]).filter((x): x is number => x != null);
-      out[key][i] = round(median(vals), key === 'precip' || key === 'snow' ? 2 : 1);
+      out[key][i] = round(median(vals), key === 'precip' || key === 'snow' || key === 'snowLiquid' ? 2 : 1);
     }
   }
   return out;
